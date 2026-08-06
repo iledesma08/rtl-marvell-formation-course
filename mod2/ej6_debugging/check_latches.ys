@@ -1,0 +1,31 @@
+# Verifica si alu_bad, alu_fix1, alu_fix2 infieren latches en sintesis
+
+
+# alu_bad (se espera que SI tenga latch)
+design -reset
+read_verilog -sv alu_bad.v
+hierarchy -check -top alu_bad
+proc
+opt
+techmap
+tee -o report_alu_bad.txt stat
+
+# alu_fix1 (default -- NO deberia tener latch) 
+design -reset
+read_verilog -sv alu_fix1.v
+hierarchy -check -top alu_fix1
+proc
+opt
+techmap
+tee -o report_alu_fix1.txt stat
+
+# alu_fix2 (pre-asignacion -- NO deberia tener latch) 
+design -reset
+read_verilog -sv alu_fix2.v
+hierarchy -check -top alu_fix2
+proc
+opt
+techmap
+tee -o report_alu_fix2.txt stat
+
+
