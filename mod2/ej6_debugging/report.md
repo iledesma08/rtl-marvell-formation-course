@@ -3,5 +3,4 @@
 
 + La forma de solucionarlo es relativamente sencilla, se asigna un valor para todos los casos o se le da a la salida una salida predefinida antes de entrar a la sentencia case, lo que seria equivalente a un caso default.
 
-* *REGLA DE ORO:* En logica combinacional, toda salida debe tener un valor definido para
-cualquier combinacion de las entradas.
+* *REGLA DE ORO:* En logica combinacional, toda salida debe tener un valor definido para cualquier combinacion de las entradas.

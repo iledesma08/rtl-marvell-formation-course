@@ -57,12 +57,12 @@ Todos los valores del flanco anterior se recogen al mismo tiempo y se asignan ju
 
 Recopilamos los valores de `a`, `b`, `c` en `t = 0 ns`, `10 ns` y `20 ns` (ambos casos partiendo de `1,2,3` en reset):
 
-Tiempo  |  Caso A (blocking)     |  Caso B (non-blocking)
---------+------------------------+-------------------------
-    0ns |  a=1 b=2 c=3           |  a=1 b=2 c=3
-   10ns |  a=2 b=3 c=2           |  a=2 b=3 c=1
-   20ns |  a=3 b=2 c=3           |  a=3 b=1 c=2
---------+------------------------+-------------------------
+Flanco |  Caso A (blocking)     |  Caso B (non-blocking) 
+-------+------------------------+-------------------------
+   0   |  a=1 b=2 c=3           |  a=1 b=2 c=3
+   1   |  a=2 b=3 c=2           |  a=2 b=3 c=1
+   2   |  a=3 b=2 c=3           |  a=3 b=1 c=2
+-------+------------------------+-------------------------
 
 > Si seguimos un ciclo más, el caso B continúa rotando: `(1,2,3) → (2,3,1) → (3,1,2) → (1,2,3) → ...`. Es exactamente un rotador.
 > 

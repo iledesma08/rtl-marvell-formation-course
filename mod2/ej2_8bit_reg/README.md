@@ -54,7 +54,7 @@ Para seguir la consigna de "patrón `reg_ce` parametrizable", el ancho se expone
 
 ## El testbench
 
-El testbench es autocontenido: genera el reloj y clock, instala el DUT, aplica los estímulos y compara contra una tabla de valores esperados. La convención de tiempo es simple:
+El testbench es autocontenido: genera el clock, instala el DUT, aplica los estímulos y compara contra una tabla de valores esperados. La convención de tiempo es simple:
 
 * Los estímulos se presentan justo después del `negedge`, para que queden estables durante toda la fase baja del reloj antes del `posedge`.
 * La salida se muestrea justo después del `posedge` (`#1`), para no competir con la propagación interna del registro.

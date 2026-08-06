@@ -66,6 +66,8 @@ end
 Si `ready_in = 0`, ningún `<=` se ejecuta y todo queda congelado. Como `ready_out = ready_in`, el pipeline además le "avisa" al productor que no puede aceptar: con *stall* y `valid_in = 1`, `ready_out` vale 0, tal como pide el enunciado. Notar que usamos `>>>` (arreglo aritmético) y no `>>`, porque `x` puede ser negativo y queremos conservar el signo.
 
 > **Un detalle del `valid`:** el `valid_out` lo sacamos del `valid` de la tercera etapa (`s3_valid`), que es un registro más. Por eso, cuando el consumidor no está listo, `valid_out` queda "colgado" en 1 todo el tiempo que dura el *stall* (el dato no se pierde, simplemente espera). Esa es la semántica correcta de AXI-Stream: la transferencia recién ocurre cuando `valid_out && ready_in`.
+>
+> **Limitación del diseño (sin skid buffer):** este pipeline funciona porque las 3 etapas tienen exactamente 1 ciclo de retardo y `ready_out = ready_in` propaga el back-pressure de punta a punta, de modo que congelar todos los FFs con un CE común nunca pierde datos. Esta simplificación no tolera latencias de etapa variables: si una etapa tardara más de un ciclo (p. ej. un multiplicador pipelineado o un recurso compartido), un stall podría solaparse con una muestra que ya salió de la etapa anterior y no habría dónde guardarla. En diseños reales se inserta un skid buffer (un registro FIFO especial de 2 entradas) entre etapas para desacoplar el valid/ready por etapa y soportar back-pressure parcial. 
 
 ---
 

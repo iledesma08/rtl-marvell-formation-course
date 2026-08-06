@@ -59,3 +59,4 @@ OP= 11 ,y_bad= 32 , y_default= 0 , y_preasignacion= 0
 OP= 11 ,y_bad= -96 , y_default= 0 , y_preasignacion= 0 
 OP= 11 ,y_bad= -87 , y_default= 0 , y_preasignacion= 0 
 PASS= 197, FAIL= 59
+tb_alu.v:73: $finish called at 256000 (1ps)

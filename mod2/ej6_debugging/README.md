@@ -1,4 +1,4 @@
-# EJERCICIO NRO 3
+# EJERCICIO NRO 6
 ## ENUNCIADO
 Inspeccionar el código propuesto por el ejercicio y realizar:
 
@@ -15,7 +15,7 @@ Inspeccionar el código propuesto por el ejercicio y realizar:
 
 * Este modulo contiene el código propuesto por el ejercicio, en él se describe el funcionamiento de una *ALU*, se selecciona la operación a realizar utilizando una señal de 2 bits (op). La salida del modulo (y) es en función de los operandos de entrada (a,b) y de la operación seleccionada. 
 
-* Este código contiene un bug explicado con mayor detalle en *"report.md"*. A modo de resumen, el sintetizador infiere un Latch a causa de la no especificación de la salida para todos los casos posibles de *op*.
+* Este código contiene un bug explicado con mayor detalle en [este reporte](report.md). A modo de resumen, el sintetizador infiere un Latch a causa de la no especificación de la salida para todos los casos posibles de *op*.
 
 ### Modulo 2: alu_fix1
 

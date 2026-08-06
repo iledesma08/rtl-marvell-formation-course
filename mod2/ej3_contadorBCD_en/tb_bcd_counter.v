@@ -56,7 +56,7 @@ module tb_bcd_counter;
             end
             
         //muestro en display el resultado de la comparacion con el golden model.    
-        $display("Resumen: %0d PASS, %0d FAIL, %0d Rollover's de, %0d ciclos", pass_count, fail_count, rollover_count , i);
+        $display("Resumen: %0d PASS, %0d FAIL, %0d Rollover's, %0d ciclos", pass_count, fail_count, rollover_count , i);
         $finish;
     end
 endmodule

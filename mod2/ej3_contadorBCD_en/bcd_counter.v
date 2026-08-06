@@ -1,6 +1,6 @@
 //Ejercicio 3 - realizar un contador BCD con incremento en flanco de reloj si En=1 
 //Debe emitir un 1 en la salida tc cuando el contador pasa de 9 a 0 (rollover)
-//Debe tener reset sincrono activo por alto, colca el contador en cero
+//Debe tener reset sincrono activo por alto, coloca el contador en cero
 
 //defino el tiempo y precision
 `timescale 1ns/1ps

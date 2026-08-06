@@ -29,9 +29,9 @@ module tb_rotator;
   end
 
   // Muestra una fila de la tabla con los valores instantaneos de ambos casos.
-  task show_row(input integer t);
-    $display("   %2dns |  a=%0d b=%0d c=%0d           |  a=%0d b=%0d c=%0d",
-             t, aA, bA, cA, aB, bB, cB);
+  task show_row(input string label);
+    $display("%s |  a=%0d b=%0d c=%0d           |  a=%0d b=%0d c=%0d",
+             label, aA, bA, cA, aB, bB, cB);
   endtask
 
   // Compara una tripleta (va,vb,vc) vs espera (ea,eb,ec), con rótulo.
@@ -58,17 +58,18 @@ module tb_rotator;
     #12 rst_n = 1;   // suelto reset asíncrono entre flancos de clock
 
     $display("");
-    $display("Tiempo  |  Caso A (blocking)     |  Caso B (non-blocking) ");
-    $display("--------+------------------------+-------------------------");
-    show_row(0);
+    $display("Flanco |  Caso A (blocking)     |  Caso B (non-blocking) ");
+    $display("-------+------------------------+-------------------------");
+    show_row("   0  ");
     @(posedge clk); #1;
-    show_row(10);
+    show_row("   1  ");
     @(posedge clk); #1;
-    show_row(20);
-    $display("--------+------------------------+-------------------------");
+    show_row("   2  ");
+    $display("-------+------------------------+-------------------------");
 
     $display("");
     $display("--- Reset y re-medicion sobre 2 flancos consecutivos ---");
+    $display("");
     rst_n = 0;
     #12 rst_n = 1;
 

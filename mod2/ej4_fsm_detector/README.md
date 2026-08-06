@@ -13,6 +13,8 @@
 
 ### Diagrama de estados:
 
+![diagrama](diagrama.png)
+
 Estado | x=0 -> | x=1 -> | y
 -------|--------|--------|---
 S00    | S00    | S01    | 0
