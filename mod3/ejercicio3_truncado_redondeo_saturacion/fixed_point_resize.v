@@ -30,13 +30,14 @@ module fixed_point_resize #(
 
     localparam diferencia_redondeo = width_NBF_in - width_NBF_out - 1; //Es para observar el primer bit a descartar, usado en redondeo
     localparam diferencia_saturacion = width_NBI_in - width_NBI_out; //Es para analizar si hay overflow
+    localparam diferencia_saturacion_safe = (diferencia_saturacion > 0) ? diferencia_saturacion : 1; // por si la diferencia_sat=0
 
 
-always_comb begin 
+    always_comb begin 
 
    sign_bit = x >> (width_NB_in - 1); //obtengo bit de signo
 
-case (op)
+    case (op)
     
 
     //defino el caso de truncamiento
@@ -49,23 +50,17 @@ case (op)
     //defino el caso de redondeo
     2'b01: begin
         last_bit = x[diferencia_redondeo];
-        if (last_bit) begin
-            NBI_out = x[width_NBF_in +: width_NBI_out];
-            NBF_out = x[width_NBF_in-1 -: width_NBF_out];
-            y = {sign_bit,NBI_out,NBF_out} + 1;
-
-        end else begin
-
-            //en caso de ser 0 no hay suma 
-           NBI_out = x[width_NBF_in +: width_NBI_out];
-           NBF_out = x[width_NBF_in-1 -: width_NBF_out];
-           y = {sign_bit,NBI_out,NBF_out};
-        end
+        NBI_out = x[width_NBF_in +: width_NBI_out];
+        NBF_out = x[width_NBF_in-1 -: width_NBF_out];
+        if (last_bit)
+         y = {sign_bit, ({NBI_out, NBF_out} + 1'b1)};   // sumo SOLO la magnitud, no el signo
+        else
+            y = {sign_bit, NBI_out, NBF_out};
     end
 
     //defino el caso de saturación 
     2'b10: begin
-        overflow = | x[width_NB_in-2 -: diferencia_saturacion]; //Toma los bits descartados y se fija si hay alguno en 1 con la OR
+        overflow = (diferencia_saturacion > 0) ? |x[width_NB_in-2 -: diferencia_saturacion_safe] : 1'b0; //es por si dif_sat es cero, esto puede generar error de compilacion.
         //Pongo -2 para excluir 
         if (overflow) begin
             NBI_out = {width_NBI_out{1'b1}};
@@ -85,6 +80,6 @@ case (op)
 
     end
       
-endcase 
-end
+    endcase 
+    end
 endmodule
