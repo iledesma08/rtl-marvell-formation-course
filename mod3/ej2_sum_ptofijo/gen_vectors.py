@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # gen_vectors.py — Modelo golden para la suma en punto fijo (Ejercicio 2).
 #
 # 1. Analiza el caso puntual del enunciado: A=S(6,4)=110010, B=S(8,5)=00011110.

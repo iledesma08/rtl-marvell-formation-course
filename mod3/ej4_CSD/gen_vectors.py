@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # gen_vectors.py — Modelo golden para la multiplicacion por la constante K=23
 # en CSD canonico (Ejercicio 4).
 #
