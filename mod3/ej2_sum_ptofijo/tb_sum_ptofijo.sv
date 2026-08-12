@@ -2,7 +2,7 @@
 //
 // Carga los vectores generados por gen_vectors.py (a.hex, b.hex, expected.hex,
 // nv.txt), aplica cada par A/B al DUT y compara la suma observada contra el
-// valor esperado calculado por el modelo golden (fxpmath). Reporta PASS/FAIL.
+// valor esperado calculado por el modelo golden (fxpmath).
 
 `timescale 1ns/1ps
 

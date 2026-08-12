@@ -6,7 +6,7 @@
 #    residuo (operado en paralelo) y la recomposicion decimal del resultado.
 # 2. Genera los archivos x.hex / y.hex / c3.hex / c5.hex / c7.hex / z.hex
 #    (mas nv.txt con la cantidad de vectores) que consume el testbench
-#    self-checking en SystemVerilog.
+#    en SystemVerilog.
 # 3. Cross-check: compara el modelo fxpmath contra la aritmetica entera
 #    ((X*Y) mod M) y contra la recomposicion CRT.
 import os

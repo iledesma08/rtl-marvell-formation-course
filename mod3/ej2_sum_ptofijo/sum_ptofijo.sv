@@ -14,11 +14,11 @@ module sum_ptofijo #(
   parameter int W_B  = 8,
   parameter int NBFB = 5,
 
-  parameter int NBF  = (NBFA > NBFB) ? NBFA : NBFB,
+  parameter int NBF  = (NBFA > NBFB) ? NBFA : NBFB, // Numero de bits fraccionarios en la salida
   parameter int NBIA = W_A - NBFA,
   parameter int NBIB = W_B - NBFB,
-  parameter int NBI  = ((NBIA > NBIB) ? NBIA : NBIB) + 1,
-  parameter int NB   = NBI + NBF
+  parameter int NBI  = ((NBIA > NBIB) ? NBIA : NBIB) + 1, // Numero de bits enteros (incluye el signo) en la salida
+  parameter int NB   = NBI + NBF // Numero total de bits en la salida
 )(
   input  logic [W_A-1:0] a,
   input  logic [W_B-1:0] b,

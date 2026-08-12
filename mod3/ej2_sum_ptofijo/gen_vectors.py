@@ -3,7 +3,7 @@
 # 1. Analiza el caso puntual del enunciado: A=S(6,4)=110010, B=S(8,5)=00011110.
 #    Muestra los bits alineados a la coma, la suma en C2 y la verificacion decimal.
 # 2. Genera los archivos a.hex / b.hex / expected.hex (mas nv.txt con la cantidad
-#    de vectores) que consume el testbench self-checking en SystemVerilog.
+#    de vectores) que consume el testbench en SystemVerilog.
 # 3. Cross-check: compara el modelo fxpmath contra la aritmetica binaria en C2.
 #
 # Reglas del enunciado: NBF_out = max, NBI_out = max + 1.
@@ -21,9 +21,9 @@ W_B, NF_B = 8, 5  # B: S(8,5) -> NBI_B = 3 (con signo)
 # ---------------------------------------------------------------------------
 # Formato de salida (reglas del enunciado)
 # ---------------------------------------------------------------------------
-NBF = max(NF_A, NF_B)  # NBF_out = max        -> 5
+NBF = max(NF_A, NF_B)  # NBF_out = max -> 5
 NBIA, NBIB = W_A - NF_A, W_B - NF_B  # A: 2 / B: 3 bits int.
-NBI = max(NBIA, NBIB) + 1  # NBI_out = max + 1    -> 4
+NBI = max(NBIA, NBIB) + 1  # NBI_out = max + 1 -> 4
 NB = NBI + NBF  # NB_out = 9 -> S(9,5)
 
 # val_from_bits y sig son el mismo "descodificador C2" (uno desde string y escalado,
@@ -70,7 +70,7 @@ def alinear(bits, n_frac_in, nbi_in):
     """Alinea A/B a S(NB, NBF): agrega ceros hacia la derecha (extiende la
     coma) y extiende el signo hacia la izquierda.
     Ejemplo: alinear("110010", 4, 2) -> "111001000" (S(9,5))."""
-    sign = bits[0]  # '1' o '0' (MSB, es un char)
+    sign = bits[0]  # '1' o '0' (MSB)
     replicate = sign * (NBI - nbi_in)  # extiende el signo a la izquierda
     bits = bits + "0" * (NBF - n_frac_in)  # extiende la coma a la derecha
     return replicate + bits  # bits alineados a la coma
@@ -142,7 +142,7 @@ def generar_vectores(a_bin, b_bin):
         exp_raw = expected_fxp(a_raw, b_raw)
         # cross-check con aritmetica binaria C2
         # (cálculo "a mano" del esperado en puro C2)
-        # Aproxima exactamente al hardware, y va en tres etapas: escalar, sumar, enmascarar.
+        # Aproxima al hardware, y va en tres etapas: escalar, sumar, enmascarar.
         exp_c2 = (
             (sig(a_raw, W_A) << (NBF - NF_A))
             + (sig(b_raw, W_B) << (NBF - NF_B))

@@ -3,7 +3,7 @@
 // Carga los vectores generados por gen_vectors.py (x.hex, expected.hex,
 // nv.txt), aplica cada X al DUT y compara ambas salidas (forma binaria y
 // forma CSD) contra el valor esperado calculado por el modelo golden
-// (fxpmath). Ademas verifica que ambas formas coinciden entre si. PASS/FAIL.
+// (fxpmath). Ademas verifica que ambas formas coinciden entre si.
 
 `timescale 1ns/1ps
 

@@ -4,10 +4,6 @@
 //                                        (4 sumandos -> 3 sumadores)
 //   y_csd : forma CSD canonico       ->  Y = (X<<5) - (X<<3) - X
 //                                        (3 sumandos -> 2 sumadores)
-//
-// X entero signado S(W_X, 0); el producto X*K cabe en S(W_X + 5, 0) porque
-// |X*23| <= 23*2^(W_X-1) < 2^(W_X+4). Los shifts son gratuitos en hardware,
-// de modo que la economia real de CSD esta en la cantidad de sumadores.
 
 module mul23 #(
   parameter int W_X = 8,

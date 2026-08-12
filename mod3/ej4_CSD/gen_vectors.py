@@ -6,7 +6,7 @@
 #    consecutivos) y las expresiones Y = X*23 con shifts y sumas/restas,
 #    comparando la cantidad de sumadores de cada forma.
 # 2. Genera los archivos x.hex / expected.hex (mas nv.txt con la cantidad de
-#    vectores) que consume el testbench self-checking en SystemVerilog.
+#    vectores) que consume el testbench en SystemVerilog.
 # 3. Cross-check: compara el modelo fxpmath contra la aritmetica entera (X*23)
 #    y contra la expresion CSD.
 import os
@@ -26,7 +26,8 @@ MASK = (1 << W_Y) - 1
 
 
 def sig(raw, nbits):
-    """Entero con signo a partir del patron sin signo de nbits."""
+    """Entero con signo a partir del patron sin signo de nbits.
+    Ejemplo: sig(50, 6) -> -14 (0b110010 = 0x32)."""
     if raw & (1 << (nbits - 1)):
         return raw - (1 << nbits)
     return raw
@@ -36,8 +37,13 @@ def sig(raw, nbits):
 
 
 def to_hex(value, nbits):
-    """Patron binario C2 -> hex sin signo de nbits con ancho fijo."""
-    return format(value & ((1 << nbits) - 1), "0%dx" % ((nbits + 3) // 4))
+    """Patron binario C2 -> hex sin signo de nbits con ancho fijo.
+    Ejemplo: to_hex(-14, 6) -> "0x32" (0b110010 = 50)."""
+    # hace el enmascarado (wrap-around a 2^nbits)
+    # Si el valor ya es positivo dentro del rango no cambia nada;
+    # si fuera negativo lo convierte a su representación C2
+    wrapped_value = value & ((1 << nbits) - 1)
+    return format(wrapped_value, "0%dx" % ((nbits + 3) // 4))
 
 
 def csd(n, con_steps=False):
@@ -46,15 +52,15 @@ def csd(n, con_steps=False):
     ademas el detalle de cada paso (posicion, valor y accion)."""
     d, steps = [], []
     v, i = n, 0
-    while v > 0:
-        if v & 1:
-            if v & 3 == 3:  # corrida de unos -> -1 y propaga +1
-                d.append(-1)
+    while v > 0:  # mientras queden unos en el patron binario
+        if v & 1:  # bit menos significativo es 1
+            if v & 3 == 3:  # dos unos consecutivos -> -1 y propago +1
+                d.append(-1)  # pone -1 en la posicion i
                 if con_steps:
                     steps.append((i, v, "impar, termina en '11' -> -1, propago +1"))
                 v = (v + 1) >> 1
             else:  # uno aislado -> +1
-                d.append(1)
+                d.append(1)  # pone +1 en la posicion i
                 if con_steps:
                     steps.append((i, v, "impar aislado -> +1"))
                 v = v >> 1
@@ -69,11 +75,11 @@ def csd(n, con_steps=False):
 
 def mostrar_caso_enunciado():
     """Entregables del caso puntual: K en binario, en CSD y las expresiones Y."""
-    k_bin = format(K, "b")
+    k_bin = format(K, "b")  # binario estandar de K
     n_k = sum(int(b) for b in k_bin)  # cantidad de unos (sumandos)
     d_lsb, steps = csd(K, con_steps=True)  # digitos de LSB a MSB
     n_csd = sum(1 for x in d_lsb if x != 0)  # no-ceros (sumandos)
-    digs = " ".join("%+d" % x for x in d_lsb[::-1])
+    digs = " ".join("%+d" % x for x in d_lsb[::-1])  # digitos de MSB a LSB
 
     print("=" * 64)
     print("CASO PARTICULAR DEL ENUNCIADO - K = %d" % K)
@@ -126,7 +132,7 @@ def generar_vectores(x_bin):
         exp_int = (sig(x_raw, W_X) * K) & MASK
         exp_csd = (
             (sig(x_raw, W_X) << 5) - (sig(x_raw, W_X) << 3) - sig(x_raw, W_X)
-        ) & MASK
+        ) & MASK  # Aproxima al hardware, y va en tres etapas: escalar, sumar, enmascarar.
         assert exp_raw == exp_int, "fxpmath != entero (x=%d)" % x_raw
         assert exp_raw == exp_csd, "fxpmath != CSD    (x=%d)" % x_raw
         vecs.append((x_raw, exp_raw))
