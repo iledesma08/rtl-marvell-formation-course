@@ -3,6 +3,11 @@
 `timescale 1ns/1ps
 
 module tb_conversion;
+    localparam int NMAX = 65536;   // tope de almacenamiento de los vectores
+    logic [31:0] float_mem [0:NMAX-1];  // 
+    logic [7:0] fixed_mem [0:NMAX-1];  // 
+    reg   [31:0] n_buf[0:0];       // cantidad de vectores (nv.txt)
+
 
     logic [31:0] numero_float;
     logic [7:0]  numero_fixed;
@@ -17,34 +22,43 @@ module tb_conversion;
         .numero_fixed(numero_fixed)
     );
 
-    task check(input [31:0] valor_float, input [7:0] valor_esperado, input string nombre);
+    task check(input [31:0] valor_float, input [7:0] valor_esperado, input integer i); //declaro una variable i para determinar qué vector es el que fallo
         begin
             numero_float = valor_float;
             esperado     = valor_esperado;
             #10;
             if (numero_fixed === esperado)
-                $display("PASS: %s -> numero_fixed = %b (esperado %b)", nombre, numero_fixed, esperado);
+                pass_count = pass_count + 1;
             else
-                $display("FAIL: %s -> numero_fixed = %b (esperado %b)", nombre, numero_fixed, esperado);
+                fail_count = fail_count + 1;
         end
     endtask
 
+    integer pass_count;
+    integer fail_count;
+    integer n_vectors;
+    integer i;
+
     initial begin
-        // Caso 1: x = 9.625 (positivo, sin overflow, exponente positivo)
-        check(32'b01000001000110100000000000000000, 8'b01001101, "x=9.625");
 
-        // Caso 2: x = -9.625 (negativo, prueba el bit de signo)
-        check(32'b11000001000110100000000000000000, 8'b11001101, "x=-9.625");
 
-        // Caso 3: x = 20.5 (overflow, debe saturar)
-        check(32'b01000001101001000000000000000000, 8'b01111111, "x=20.5 (overflow)");
+        $readmemh("nv.txt", n_buf);
+        n_vectors = n_buf[0];
+        $readmemh("x.hex", float_mem, 0, n_vectors - 1); //almaceno en el array desde 0 hasta el total de vectores - 1
+        $readmemh("expected.hex", fixed_mem, 0, n_vectors - 1);
 
-        // Caso 4: x = 0.625 (exponente negativo, numero menor a 1)
-        check(32'b00111111001000000000000000000000, 8'b00000101, "x=0.625 (exp negativo)");
+        pass_count = 0;
+        fail_count = 0;
 
-        // Caso 5: x = 15.875 (limite maximo representable en S(8,3), sin overflow)
-        check(32'b01000001011111100000000000000000, 8'b01111111, "x=15.875 (limite maximo)");
+        for (i =0 ;i<n_vectors ;i=i+1 ) begin
+            
 
+            check(float_mem[i], fixed_mem[i],i);
+
+        end
+
+        $display("PASS: %0d ", pass_count);
+        $display("FAIL: %0d ", fail_count);
         $finish;
     end
 
