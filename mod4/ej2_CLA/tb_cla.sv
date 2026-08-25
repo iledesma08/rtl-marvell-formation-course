@@ -196,7 +196,6 @@ module tb_cla;
     $display("EJERCICIO 2 - CLA jerarquico 4-bit -> 16-bit");
     $display("  v1: un nivel de lookahead (cla4 + cla16)");
     $display("  v2: dos niveles, con G/P de bloque (cla4_v2 + cla16_v2)");
-    $display("  referencias: RCA16 (ejercicio 1)");
     $display("==============================================================");
 
     // ---- 1. cla4 v1 exhaustivo: todas las (a,b) x cin ------------------
@@ -250,18 +249,16 @@ module tb_cla;
     $display("  Tabla delay vs RCA (misma N = 16, mismo modelo de compuertas)");
     $display("==============================================================");
     $display("  Arquitectura  | delay cout  [ns] | delay sum[15] [ns]");
-    $display("---------------+-------------------+-------------------");
+    $display("----------------+-------------------+-------------------");
     $display("  CLA16 v1 (1N) |       %0d         |       %0d", d_cla1_cout, d_cla1_sum);
     $display("  CLA16 v2 (2N) |       %0d         |       %0d", d_cla2_cout, d_cla2_sum);
     $display("  RCA16         |       %0d         |       %0d", d_rca_cout, d_rca_sum);
     $display("");
-    $display("  (peor caso: a = 2^16 - 1, b = 1, cin = 0; xor=2ns, and/or=1ns)");
-    $display("");
 
     if (match_count != (4 + NRAND))
-      $display("  ATENCION: CLA16 v1 y v2 solo coincidieron en %0d de %0d vectores", match_count, 4 + NRAND);
+      $display("ATENCION: CLA16 v1 y v2 solo coincidieron en %0d de %0d vectores", match_count, 4 + NRAND);
     else
-      $display("  CLA16 v1 y v2 coincidieron en los %0d vectores (bordes + random)", match_count);
+      $display("CLA16 v1 y v2 coincidieron en los %0d vectores (bordes + random)", match_count);
 
     if (errors == 0)
       $display("RESULTADO: PASS  (cla4 v1+v2 exhaustivo, bordes, %0d random, cross-check y delay OK)", NRAND);

@@ -118,7 +118,6 @@ module tb_rca;
     $display("  Cantidad de full adders : %0d", N);
     $display("  Delay peor caso (carry-out)  : %0d ns  (path cin -> cout)", delay_carry);
     $display("  Delay peor caso (bit sum MSB): %0d ns  (path cin -> sum[N-1])", delay_sum);
-    $display("  (xor=2ns, and/or=1ns; el carry riplea por las %0d etapas)", N);
     $display("");
 
     if (errors == 0)

@@ -237,15 +237,11 @@ module tb_csla;
     $display("  Tabla comparativa CSLA vs CLA (v1 y v2) vs RCA (N = 16)");
     $display("==============================================================");
     $display("  Arquitectura  | delay cout [ns]  | delay sum[15] [ns] | gates");
-    $display("---------------+------------------+--------------------+------");
+    $display("----------------+------------------+--------------------+------");
     $display("  CSLA16        |       %0d         |         %0d         |  %0d", d_csla_cout, d_csla_sum, GATES_CSLA);
     $display("  CLA16 v1 (1N) |       %0d         |         %0d         |  %0d", d_cla_cout,  d_cla_sum,  GATES_CLA);
     $display("  CLA16 v2 (2N) |       %0d         |         %0d         |  %0d", d_cla_v2_cout, d_cla_v2_sum, GATES_CLA_V2);
     $display("  RCA16         |       %0d         |         %0d         |  %0d", d_rca_cout,  d_rca_sum,  GATES_RCA);
-    $display("");
-    $display("  (peor caso: a = 2^16 - 1, b = 1, cin = 0; xor=2ns, and/or/not=1ns)");
-    $display("  (gates: conteo estructural de compuertas primitivas de 2 entradas,");
-    $display("   verificado por Yosys en el netlist real; ver run.sh)");
     $display("");
 
     if (errors == 0)
