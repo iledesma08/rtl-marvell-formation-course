@@ -15,8 +15,8 @@ iverilog -g2012 -o sim.out \
   rca4.sv \
   ../ej1_RCA/full_adder.sv \
   ../ej1_RCA/rca.sv \
-  ../ej2_CLA/cla4.sv \
-  ../ej2_CLA/cla16.sv
+  ../ej2_CLA/v1/cla4.sv \
+  ../ej2_CLA/v1/cla16.sv
 
 echo ">>> [2/2] Simulando ..."
 vvp sim.out
