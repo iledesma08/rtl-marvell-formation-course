@@ -6,14 +6,15 @@
 //      a + b + cin en 5 bits.
 //   2. csla16 bordes:  0+0, max+max (carry-out=1), max+0 con cin=1, max+1.
 //   3. csla16 random:  1000 vectores comparados contra a + b + cin en 17 bits,
-//      con cross-check contra un RCA16 (ejercicio 1) y un CLA16 (ejercicio 2)
-//      estimulados con lo mismo: tres sumadores correctos deben coincidir.
+//      con cross-check contra el RCA16 (ejercicio 1) y las DOS versiones del
+//      CLA16 (ejercicio 2: v1 de un nivel y v2 de dos niveles) estimulados con
+//      lo mismo: cuatro sumadores correctos deben coincidir.
 //
 // Ademas mide el delay del peor caso (carry de bit 0 hasta bit 15) para el
-// CSLA16, el CLA16 y el RCA16 por separado y reporta la tabla comparativa que
-// pide el enunciado. Todos comparten el mismo modelo de compuertas
-// (xor=2ns, and/or/not=1ns), asi que la comparacion es justa. Reporta
-// PASS/FAIL con $display.
+// CSLA16, el CLA16 v1, el CLA16 v2 y el RCA16 por separado y reporta la tabla
+// comparativa que pide el enunciado. Todos comparten el mismo modelo de
+// compuertas (xor=2ns, and/or/not=1ns), asi que la comparacion es justa.
+// Reporta PASS/FAIL con $display.
 
 `timescale 1ns/1ps
 
@@ -25,25 +26,35 @@ module tb_csla;
   // En SystemVerilog puro no hay forma de "reflejar" la jerarquia y contar
   // instancias automaticamente (eso se haria con VPI en C segun investigue), 
   // asi que el total se deriva de los costos de las celdas y de las formulas 
-  // estructurales de cada arquitectura, en vez de escribir numeros magicos. 
+  // estructurales de cada arquitectura, en vez de escribir numeros magicos.
+  // El run.sh ademas lo VERIFICA con Yosys contra el netlist real.
   //
   // Costo de cada celula (documentado en su propio modulo):
   //   full_adder (ej1/full_adder.sv): 2 xor + 2 and + 1 or = 5 gates
   //   mux2  (en csla16.sv)           : not + 2 and + 1 or   = 4 gates
-  //   cla4  (ej2/cla4.sv)            : gp(8) + prefijos(3) + lookahead
+  //   cla4  (ej2/v1/cla4.sv)         : gp(8) + prefijos(3) + lookahead
   //                                    c1..c4 (2+4+6+8) + sum(4) = 35 gates
+  //   cla4_v2 (ej2/v2/cla4.sv)       : cla4 + 1 or (G de bloque) = 36 gates
   // Formulas estructurales:
   //   rca4  = 4 x full_adder
   //   rca16 = 16 x full_adder
-  //   cla16 = 4 x cla4
+  //   cla16 (v1) = 4 x cla4
+  //   cla16 (v2) = 4 x cla4_v2 + lookahead de bloque
+  //                (3 prefijos + c1..c4 entre bloques 2+4+6+8 = 23 gates)
   //   csla16 = bloque0 (1 rca4) + 3 bloques x (2 rca4 + 4 sum_mux + 1 cout_mux)
-  localparam int GATES_FA   = 5;                                // full_adder.sv
-  localparam int GATES_MUX2 = 4;                                // mux2 (csla16)
-  localparam int GATES_CLA4 = 35;                               // cla4.sv
-  localparam int GATES_RCA4 = 4 * GATES_FA;                                         // 20
-  localparam int GATES_RCA  = 16 * GATES_FA;                                        // 80
-  localparam int GATES_CLA  = 4 * GATES_CLA4;                                       // 140
-  localparam int GATES_CSLA = GATES_RCA4 + 3 * (2 * GATES_RCA4 + 5 * GATES_MUX2);   // 200
+  //
+  // Nota: el lookahead de bloque del cla16_v2 se cuenta sin el or de su salida
+  // G (no conectada): Yosys lo poda del netlist y en sintesis no existiria.
+  localparam int GATES_FA      = 5;                                // full_adder.sv
+  localparam int GATES_MUX2    = 4;                                // mux2 (csla16)
+  localparam int GATES_CLA4    = 35;                               // v1/cla4.sv
+  localparam int GATES_CLA4_V2 = GATES_CLA4 + 1;                   // v2/cla4.sv (36)
+  localparam int GATES_LA2     = 23;                               // lookahead bloque cla16_v2
+  localparam int GATES_RCA4    = 4 * GATES_FA;                                         // 20
+  localparam int GATES_RCA     = 16 * GATES_FA;                                        // 80
+  localparam int GATES_CLA     = 4 * GATES_CLA4;                                       // 140
+  localparam int GATES_CLA_V2  = 4 * GATES_CLA4_V2 + GATES_LA2;                        // 167
+  localparam int GATES_CSLA    = GATES_RCA4 + 3 * (2 * GATES_RCA4 + 5 * GATES_MUX2);   // 200
 
   // ---- Senales del DUT CSLA16 y de las referencias RCA16 / CLA16 ----------
   logic [15:0] a;
@@ -55,6 +66,8 @@ module tb_csla;
   logic        cout_rca;
   logic [15:0] sum_cla;
   logic        cout_cla;
+  logic [15:0] sum_cla_v2;
+  logic        cout_cla_v2;
 
   // ---- Senales para el rca4 (verificacion exhaustiva) ----------------------
   logic [3:0]  a4;
@@ -70,12 +83,15 @@ module tb_csla;
   time t0;
   time t_last_csla_cout;   // ultimo cambio del carry-out del CSLA16
   time t_last_csla_sum;    // ultimo cambio del bit sum[15] del CSLA16
-  time t_last_cla_cout;    // ultimo cambio del carry-out del CLA16
-  time t_last_cla_sum;     // ultimo cambio del bit sum[15] del CLA16
+  time t_last_cla_cout;    // ultimo cambio del carry-out del CLA16 v1
+  time t_last_cla_sum;     // ultimo cambio del bit sum[15] del CLA16 v1
+  time t_last_cla_v2_cout; // ultimo cambio del carry-out del CLA16 v2
+  time t_last_cla_v2_sum;  // ultimo cambio del bit sum[15] del CLA16 v2
   time t_last_rca_cout;    // ultimo cambio del carry-out del RCA16
   time t_last_rca_sum;     // ultimo cambio del bit sum[15] del RCA16
   time d_csla_cout, d_csla_sum;
   time d_cla_cout,  d_cla_sum;
+  time d_cla_v2_cout, d_cla_v2_sum;
   time d_rca_cout,  d_rca_sum;
 
   integer errors;
@@ -89,6 +105,7 @@ module tb_csla;
   csla16 dut      (.a(a), .b(b), .cin(cin), .sum(sum_csla), .cout(cout_csla));
   rca    #(.N(16)) dut_rca (.a(a), .b(b), .cin(cin), .sum(sum_rca), .cout(cout_rca));
   cla16  dut_cla  (.a(a), .b(b), .cin(cin), .sum(sum_cla),  .cout(cout_cla));
+  cla16_v2 dut_cla_v2 (.a(a), .b(b), .cin(cin), .sum(sum_cla_v2), .cout(cout_cla_v2));
   rca4   dut4     (.a(a4), .b(b4), .cin(cin4), .sum(sum4),  .cout(cout4));
 
   // Forma de onda para GTKWave
@@ -103,6 +120,8 @@ module tb_csla;
   always @(sum_csla[15]) t_last_csla_sum = $time;
   always @(cout_cla)    t_last_cla_cout = $time;
   always @(sum_cla[15])  t_last_cla_sum = $time;
+  always @(cout_cla_v2)    t_last_cla_v2_cout = $time;
+  always @(sum_cla_v2[15])  t_last_cla_v2_sum = $time;
   always @(cout_rca)    t_last_rca_cout = $time;
   always @(sum_rca[15])  t_last_rca_sum = $time;
 
@@ -125,8 +144,8 @@ module tb_csla;
 
   // ---------------------------------------------------------------------
   // Aplica un vector al csla16 y lo chequea contra a + b + cin (17 bits).
-  // Ademas lo cross-checkea contra el RCA16 y el CLA16: con la misma
-  // estimulacion, tres sumadores correctos tienen que dar lo mismo.
+  // Ademas lo cross-checkea contra el RCA16 y los dos CLA16 (v1 y v2): con la
+  // misma estimulacion, cuatro sumadores correctos tienen que dar lo mismo.
   // ---------------------------------------------------------------------
   task automatic apply_and_check(input string tag, input logic [15:0] va,
                                  input logic [15:0] vb, input logic vcin);
@@ -146,8 +165,13 @@ module tb_csla;
       end
       if ((sum_csla !== sum_cla) || (cout_csla !== cout_cla)) begin
         errors = errors + 1;
-        $display("  ERROR [cross-check CLA %s]: CSLA y CLA difieren (csla: sum=%0h cout=%b | cla: sum=%0h cout=%b)",
+        $display("  ERROR [cross-check CLA v1 %s]: CSLA y CLA v1 difieren (csla: sum=%0h cout=%b | cla v1: sum=%0h cout=%b)",
                  tag, sum_csla, cout_csla, sum_cla, cout_cla);
+      end
+      if ((sum_csla !== sum_cla_v2) || (cout_csla !== cout_cla_v2)) begin
+        errors = errors + 1;
+        $display("  ERROR [cross-check CLA v2 %s]: CSLA y CLA v2 difieren (csla: sum=%0h cout=%b | cla v2: sum=%0h cout=%b)",
+                 tag, sum_csla, cout_csla, sum_cla_v2, cout_cla_v2);
       end
     end
   endtask
@@ -186,14 +210,16 @@ module tb_csla;
     // ---- Medicion de delay (peor caso: carry de bit 0 hasta bit 15) -----
     // Partimos de (0,0,0) y aplicamos (max,1,0): el bit 0 genera carry y este
     // tiene que llegar hasta el final. Para el RCA son 16 saltos de ~2ns; para
-    // el CLA, 4 saltos de bloque con lookahead interno; para el CSLA, un RCA
-    // de 4 bits + 3 muxes de bloque. Medimos por separado cout y sum[15] en
-    // las tres arquitecturas, con los monitores.
+    // el CLA v1, 4 saltos de bloque con lookahead interno; para el CLA v2, el
+    // lookahead entre bloques en paralelo; para el CSLA, un RCA de 4 bits + 3
+    // muxes de bloque. Medimos por separado cout y sum[15] en las cuatro
+    // arquitecturas, con los monitores.
     a = '0; b = '0; cin = 1'b0;
     #(2 * N16 + 10);                     // dejamos estabilizar el estado previo
     t0 = $time;
     t_last_csla_cout = t0; t_last_csla_sum = t0;
     t_last_cla_cout  = t0; t_last_cla_sum  = t0;
+    t_last_cla_v2_cout = t0; t_last_cla_v2_sum = t0;
     t_last_rca_cout  = t0; t_last_rca_sum  = t0;
     a = '1; b = 1; cin = 1'b0;           // aplicamos el estimulo del peor caso
     #(2 * N16 + 30);                     // tiempo suficiente para que estabilice
@@ -201,21 +227,25 @@ module tb_csla;
     d_csla_sum  = t_last_csla_sum  - t0;
     d_cla_cout  = t_last_cla_cout  - t0;
     d_cla_sum   = t_last_cla_sum   - t0;
+    d_cla_v2_cout = t_last_cla_v2_cout - t0;
+    d_cla_v2_sum  = t_last_cla_v2_sum  - t0;
     d_rca_cout  = t_last_rca_cout  - t0;
     d_rca_sum   = t_last_rca_sum   - t0;
 
     $display("");
     $display("==============================================================");
-    $display("  Tabla comparativa CSLA vs CLA vs RCA (N = 16)");
+    $display("  Tabla comparativa CSLA vs CLA (v1 y v2) vs RCA (N = 16)");
     $display("==============================================================");
-    $display("  Arquitectura | delay cout [ns]  | delay sum[15] [ns] | gates");
+    $display("  Arquitectura  | delay cout [ns]  | delay sum[15] [ns] | gates");
     $display("---------------+------------------+--------------------+------");
-    $display("  CSLA16       |       %0d         |         %0d         |  %0d", d_csla_cout, d_csla_sum, GATES_CSLA);
-    $display("  CLA16        |       %0d         |         %0d         |  %0d", d_cla_cout,  d_cla_sum,  GATES_CLA);
-    $display("  RCA16        |       %0d         |         %0d         |  %0d", d_rca_cout,  d_rca_sum,  GATES_RCA);
+    $display("  CSLA16        |       %0d         |         %0d         |  %0d", d_csla_cout, d_csla_sum, GATES_CSLA);
+    $display("  CLA16 v1 (1N) |       %0d         |         %0d         |  %0d", d_cla_cout,  d_cla_sum,  GATES_CLA);
+    $display("  CLA16 v2 (2N) |       %0d         |         %0d         |  %0d", d_cla_v2_cout, d_cla_v2_sum, GATES_CLA_V2);
+    $display("  RCA16         |       %0d         |         %0d         |  %0d", d_rca_cout,  d_rca_sum,  GATES_RCA);
     $display("");
     $display("  (peor caso: a = 2^16 - 1, b = 1, cin = 0; xor=2ns, and/or/not=1ns)");
-    $display("  (gates: conteo estructural de compuertas primitivas de 2 entradas)");
+    $display("  (gates: conteo estructural de compuertas primitivas de 2 entradas,");
+    $display("   verificado por Yosys en el netlist real; ver run.sh)");
     $display("");
 
     if (errors == 0)
