@@ -23,18 +23,17 @@ module tb_csla;
   localparam int NRAND = 1000;  // cantidad de casos random (igual que ej. 2)
 
   // Conteo estructural de compuertas (para la tabla).
-  // En SystemVerilog puro no hay forma de "reflejar" la jerarquia y contar
-  // instancias automaticamente (eso se haria con VPI en C segun investigue), 
-  // asi que el total se deriva de los costos de las celdas y de las formulas 
-  // estructurales de cada arquitectura, en vez de escribir numeros magicos.
+  // El total se deriva de los costos de las celdas y de las formulas 
+  // estructurales de cada arquitectura.
   // El run.sh ademas lo VERIFICA con Yosys contra el netlist real.
   //
-  // Costo de cada celula (documentado en su propio modulo):
+  // Costo de cada celula:
   //   full_adder (ej1/full_adder.sv): 2 xor + 2 and + 1 or = 5 gates
   //   mux2  (en csla16.sv)           : not + 2 and + 1 or   = 4 gates
   //   cla4  (ej2/v1/cla4.sv)         : gp(8) + prefijos(3) + lookahead
   //                                    c1..c4 (2+4+6+8) + sum(4) = 35 gates
   //   cla4_v2 (ej2/v2/cla4.sv)       : cla4 + 1 or (G de bloque) = 36 gates
+  //
   // Formulas estructurales:
   //   rca4  = 4 x full_adder
   //   rca16 = 16 x full_adder
