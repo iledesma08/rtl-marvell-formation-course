@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lección 2 — Generate/Propagate y el Carry Lookahead (CLA)</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/quiz.js" defer></script>
+</head>
+<body>
+<main>
+
+<div class="lesson-header">
+  <p class="kicker">Lección 2 · Ejercicio 3 — Carry Select Adder</p>
+  <h1>Generate/Propagate y el Carry Lookahead</h1>
+  <p class="lede">El CLA es el competidor directo del CSLA: el ejercicio 3 te pide compararlos. Para defender esa comparación tenés que entender por qué el CLA rompe el ripple del RCA.</p>
+  <div class="meta">
+    <span class="tag">Ejercicio 2</span>
+  </div>
+</div>
+
+<h2>El objetivo de esta lección</h2>
+<p>Al terminar vas a poder explicar con palabras y con números por qué el CLA de 16 bits tarda 17 ns (un nivel) o 13 ns (dos niveles) en vez de los 32 ns del RCA: en lugar de que el carry <em>riplee</em>, cada carry se calcula <strong>en paralelo</strong> con una fórmula que no depende del carry del bit anterior.</p>
+
+<h2>1. La idea: dos señales por bit</h2>
+<p>En cada posición <code>i</code>, antes de saber nada del carry, podemos mirar <code>a[i]</code> y <code>b[i]</code> y responder dos preguntas:</p>
+<ul>
+  <li><strong>¿Este bit va a generar carry seguro?</strong> → <code>g[i] = a[i] &amp; b[i]</code>. Si ambos son 1, la suma da 10, así que sale carry sí o sí, sin importar el carry de entrada.</li>
+  <li><strong>¿Este bit va a dejar pasar el carry que le llegue?</strong> → <code>p[i] = a[i] ^ b[i]</code>. Si son distintos, el carry de entrada pasa directo a la salida: <code>1 + 0 + cin = 0 + cin</code>.</li>
+</ul>
+<p>Con esas dos señales, el carry de salida de un bit se escribe así:</p>
+<pre><code>c[i + 1] = g[i] | (p[i] &amp; c[i])</code></pre>
+<p>Léelo en tres casos:   
+
+<ul>
+  <li>Si <code>g=1</code>, sale carry aunque <code>cin</code> sea 0.</li>
+  <li>Si <code>g=0</code> y <code>p=1</code>, deja pasar el carry de entrada.</li>
+  <li>Si <code>g=0</code> y <code>p=0</code>, mata el carry.</p></li>
+</ul>
+
+<h2>2. El lookahead: "romper" la recurrencia</h2>
+<p>El RCA usa esa fórmula bit a bit: <code>c[1]</code> necesita <code>c[0]</code>, <code>c[2]</code> necesita <code>c[1]</code>… </p>
+<p>El truco del CLA es <strong>expandir</strong> la recurrencia: escribir <code>c[2]</code> en función de <code>c[0]</code> (no de <code>c[1]</code>), <code>c[3]</code> en función de <code>c[0]</code>, etc. Sustituyendo hacia atrás:</p>
+<pre><code>c[1] = g0 | (p0 &amp; cin)
+c[2] = g1 | (p1 &amp; g0) | (p1 &amp; p0 &amp; cin)
+c[3] = g2 | (p2 &amp; g1) | (p2 &amp; p1 &amp; g0) | (p2 &amp; p1 &amp; p0 &amp; cin)
+c[4] = g3 | (p3 &amp; g2) | (p3 &amp; p2 &amp; g1) | (p3 &amp; p2 &amp; p1 &amp; g0) | (p3 &amp; p2 &amp; p1 &amp; p0 &amp; cin)</code></pre>
+<p>Analicemos la formula de <code>c[4]</code>: no depende de <code>c[3]</code> ni de <code>c[2]</code>. Depende solo de las <code>g</code>, las <code>p</code> y <code>cin</code>. O sea: <strong>todos los carries se pueden calcular en paralelo</strong> apenas se conocen las <code>g</code> y <code>p</code>. Ese es el "lookahead" (mirar hacia adelante).</p>
+
+<div class="callout ojo">
+  <p class="callout-label">La limitación</p>
+  <p>El precio del lookahead es que los términos crecen: <code>c[4]</code> necesita productos de hasta 5 entradas y un OR de 5. Con compuertas de 2 entradas eso es un <strong>árbol</strong>, y en la práctica los bloques de lookahead se limitan a ~4 bits. Por eso el CLA16 se arma encadenando bloques <code>cla4</code>, igual que el CSLA arma bloques de 4.</p>
+</div>
+
+<h2>3. El <code>cla4</code> en el código (ejercicio 2, v1)</h2>
+<p>El <code>cla4.sv</code> calcula las <code>g/p</code>, comparte los prefijos de producto (<code>pp1 = p1&amp;p0</code>, <code>pp2</code>, <code>pp3</code>) y arma cada carry con un árbol de ands/ors:</p>
+<pre><code>and #(TAND) u_pp1 (pp1, p[1], p[0]);        // prefijos compartidos
+and #(TAND) u_pp2 (pp2, p[2], pp1);
+and #(TAND) u_pp3 (pp3, p[3], pp2);
+
+// c[4] (parcial): t3_c4 reusa t2_c3, que reusa t1_c2…
+and #(TAND) u_t3_c4 (t3_c4, p[3], t2_c3);
+and #(TAND) u_t4_c4 (t4_c4, pp3, c[0]);
+or  #(TOR)  u_o3_c4 (o3_c4, o2_c4, t4_c4);
+or  #(TOR)  u_c4    (c[4], o1_c4, o3_c4);</code></pre>
+<p>Dos detalles importantes para tu presentación:</p>
+<ul>
+  <li><strong>Los prefijos se comparten:</strong> <code>pp2</code> se usa en <code>c[3]</code> y <code>c[4]</code>; <code>t2_c3</code> se reutiliza en <code>t3_c4</code>. Así el árbol no duplica lógica (por eso un <code>cla4</code> son 35 gates, no más).</li>
+  <li><strong>El path crítico del cla4 es el árbol, no el ripple:</strong> el carry-out <code>c[4]</code> llega en ~7-8 ns, lo mismo que el <code>rca4</code>. Para 4 bits no gana nada — la ventaja aparece <em>al encadenar</em>.</li>
+</ul>
+
+<h2>4. El CLA de 16 bits: un nivel vs dos niveles</h2>
+<p>Hay dos versiones en el ejercicio 2, y el testbench del ejercicio 3 las usa a ambas como referencia:</p>
+
+<h3>v1 (un nivel de lookahead) — <code>cla16</code></h3>
+<p>Encadena cuatro <code>cla4</code>: cada bloque resuelve sus carries internos en paralelo y entrega su carry-out al siguiente. El carry ya no riplea bit a bit, pero <strong>sí salta de bloque en bloque</strong> (~3 ns por bloque, el and+or del lookahead de entrada):</p>
+<pre><code>for (i = 0; i &lt; 4; i = i + 1) begin : cla_blocks
+  cla4 u_cla (
+    .a   (a[i*4 +: 4]),
+    .b   (b[i*4 +: 4]),
+    .cin (cblk[i]),
+    .sum (sum[i*4 +: 4]),
+    .cout(cblk[i + 1])
+  );
+end</code></pre>
+<p>Delay medido: <strong>17 ns</strong> para el carry-out</p>
+
+<h3>v2 (dos niveles de lookahead) — <code>cla16_v2</code></h3>
+<p>Cada <code>cla4_v2</code> expone dos señales de <em>bloque</em>:</p>
+<ul>
+  <li><code>G</code> (group generate): el bloque genera carry solo → <code>g3 | (p3&amp;g2) | (p3&amp;p2&amp;g1) | (p3&amp;p2&amp;p1&amp;g0)</code></li>
+  <li><code>P</code> (group propagate): el bloque deja pasar el carry → <code>p3 &amp; p2 &amp; p1 &amp; p0</code></li>
+</ul>
+<p>Con esas señales, un <strong>segundo lookahead</strong> calcula los carries <em>entre bloques</em> en paralelo — es la misma fórmula de la sección 2 pero con <code>G/P</code> de bloque en vez de <code>g/p</code> de bit:</p>
+<pre><code>C[4] = G[3] | (P[3]&amp;G[2]) | (P[3]&amp;P[2]&amp;G[1]) | (P[3]&amp;P[2]&amp;P[1]&amp;G[0]) | (P[3]&amp;P[2]&amp;P[1]&amp;P[0]&amp;cin)</code></pre>
+<p>Delay medido: <strong>13 ns</strong> para el carry-out. Ya no se pagan los saltos secuenciales entre bloques, solo el lookahead interno + el árbol de bloque. El delay crece con <strong>log(N)</strong> niveles, no con N ni con la cantidad de bloques.</p>
+
+<h2>5. Comparacion</h2>
+<table>
+  <tr><th>Arquitectura</th><th>delay cout</th><th>delay sum[15]</th><th>gates</th></tr>
+  <tr><td>RCA16</td><td>32 ns</td><td>32 ns</td><td>80</td></tr>
+  <tr><td>CLA16 v1 (1 nivel)</td><td>17 ns</td><td>19 ns</td><td>140</td></tr>
+  <tr><td>CLA16 v2 (2 niveles)</td><td>13 ns</td><td>16 ns</td><td>167</td></tr>
+</table>
+<p><em>Medidos por <code>tb_csla.sv</code> con el peor caso <code>0xFFFF + 1</code>. Son los números que se comparan contra el CSLA (16 ns / 200 gates) en el ejercicio 3.</em></p>
+
+<div class="callout presentacion">
+  <p class="callout-label">Conclusion</p>
+  <p>El CLA ya mejora el RCA (32 → 17 ns) a costa de más gates (80 → 140). El CSLA del ejercicio llega a 16 ns con 200 gates. La pregunta que abre el ejercicio 3 —"¿cuál preferís si apuntás a F<sub>max</sub> alta?"— no se responde solo con delay: hay que hablar de área. </p>
+</div>
+
+<h2>Repasá con un quiz</h2>
+
+<div class="quiz" data-correct="2" data-explain="g genera carry seguro (ambos bits en 1); p deja pasar el carry (bits distintos).">
+  <p class="quiz-q">1. ¿Cómo se definen generate y propagate?</p>
+  <div class="quiz-opts">
+    <button class="quiz-opt">g=a^b p=a&b</button>
+    <button class="quiz-opt">g=a|b p=a&b</button>
+    <button class="quiz-opt">g=a&b p=a^b</button>
+    <button class="quiz-opt">g=a&b p=a|b</button>
+  </div>
+  <p class="quiz-feedback"></p>
+</div>
+
+<div class="quiz" data-correct="0" data-explain="c[1] = g0 | (p0 &amp; cin): un and (1 ns) + un or (1 ns).">
+  <p class="quiz-q">2. ¿Cuánto tarda c[1] desde el carry de entrada?</p>
+  <div class="quiz-opts">
+    <button class="quiz-opt">Dos ns</button>
+    <button class="quiz-opt">Un ns</button>
+    <button class="quiz-opt">Cuatro ns</button>
+    <button class="quiz-opt">Ocho ns</button>
+  </div>
+  <p class="quiz-feedback"></p>
+</div>
+
+<div class="quiz" data-correct="1" data-explain="Al expandir la recurrencia, cada carry queda en función solo de g, p y cin: no hay que esperar al carry del bit anterior, se calculan todos en paralelo.">
+  <p class="quiz-q">3. ¿Por qué el CLA no espera el carry anterior?</p>
+  <div class="quiz-opts">
+    <button class="quiz-opt">Usa precomputo</button>
+    <button class="quiz-opt">Calcula paralelo</button>
+    <button class="quiz-opt">Elimina el carry</button>
+    <button class="quiz-opt">Dobla los bits</button>
+  </div>
+  <p class="quiz-feedback"></p>
+</div>
+
+<h2>Para profundizar</h2>
+<ul>
+  <li>Mirá los archivos: <code>ej2_CLA/v1/cla4.sv</code> y <code>cla16.sv</code>, y <code>ej2_CLA/v2/cla4.sv</code> y <code>cla16.sv</code>.</li>
+  <li>Glosario: <a href="../reference/glosario.html">Glosario — sumadores binarios y CSLA</a> (entradas Generate, Propagate, CLA).</li>
+  <li>Corré <code>bash run.sh</code> y mirá las filas CLA16 v1 y v2 de la tabla.</li>
+</ul>
+
+<div class="primary-source">
+  <p class="label">Recurso principal de esta lección</p>
+  <p><a href="https://en.wikipedia.org/wiki/Carry-lookahead_adder">Wikipedia: Carry-lookahead adder</a> — las ecuaciones de generate/propagate, el análisis de gate-delay de un CLA de 16 bits (8 gate-delays contra 31 del RCA) y el lookahead de bloque. Es la referencia que el ejercicio 2 usa de fondo.</p>
+</div>
+
+<nav class="nav">
+  <a href="0001-suma-binaria-y-el-problema-del-carry.html">← Lección 1: el problema del carry</a>
+  <a href="0003-la-idea-del-csla-suma-especulativa.html">Siguiente: la idea del CSLA →</a>
+</nav>
+
+</main>
+</body>
+</html>

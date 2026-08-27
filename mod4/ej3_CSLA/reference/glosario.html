@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Glosario — CSLA y sumadores binarios</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<main>
+
+<div class="lesson-header">
+  <p class="kicker">Referencia</p>
+  <h1>Glosario: sumadores binarios y CSLA</h1>
+  <p class="lede">Los términos usados en las lecciones del ejercicio 3, en orden de dependencia. </p>
+</div>
+
+<h2>Términos</h2>
+
+<h3>Suma binaria</h3>
+<ul>
+  <li><strong>Sum (bit de suma):</strong> el bit de resultado de sumar dos (o tres) bits. <code>1 + 1 = 0</code> con carry 1.</li>
+  <li><strong>Carry:</strong> el bit que "sobra" cuando la suma de una columna supera 1. Es lo que se arrastra a la columna siguiente.</li>
+  <li><strong>Half adder (HA):</strong> suma dos bits → <code>sum = a ^ b</code>, <code>carry = a &amp; b</code>. No tiene carry-in, por eso solo sirve para el bit menos significativo.</li>
+  <li><strong>Full adder (FA):</strong> suma tres bits (<code>a + b + cin</code>) → <code>sum</code> y <code>cout</code>. Es la célula con la que se construyen sumadores de N bits.</li>
+</ul>
+
+<h3>El problema del carry</h3>
+<ul>
+  <li><strong>Ripple (rippling):</strong> el efecto de que el carry de un bit tarda en aparecer porque depende del carry del bit anterior, que a su vez depende del anterior… La cadena va de bit 0 a bit N−1.</li>
+  <li><strong>Ripple Carry Adder (RCA):</strong> N full adders encadenados en línea; el carry "riplea" bit a bit. Simple y chico, pero su delay crece con N.</li>
+  <li><strong>Path crítico:</strong> el camino más largo (en delay) entre una entrada y una salida. Define el tiempo mínimo de reloj y, por lo tanto, la F<sub>max</sub>.</li>
+  <li><strong>Peor caso de carry:</strong> cuando el carry tiene que propagarse por TODOS los bits, p. ej. <code>0xFFFF + 0x0001</code>: en cada columna <code>1+1</code> genera carry que se suma en la siguiente.</li>
+</ul>
+
+<h3>Arquitecturas rápidas</h3>
+<ul>
+  <li><strong>Generate (g):</strong> <code>g[i] = a[i] &amp; b[i]</code>. El bit i genera carry sin importar el carry de entrada.</li>
+  <li><strong>Propagate (p):</strong> <code>p[i] = a[i] ^ b[i]</code>. El bit i propaga el carry de entrada hacia la salida.</li>
+  <li><strong>Carry Lookahead Adder (CLA):</strong> calcula todos los carries en paralelo expandiendo la recurrencia <code>c[i+1] = g[i] | (p[i] &amp; c[i])</code>. Delay O(log N) con varios niveles.</li>
+  <li><strong>Carry Select Adder (CSLA):</strong> divide el sumador en bloques; cada bloque calcula su resultado DOS veces en paralelo (carry-in 0 y carry-in 1) y un mux 2:1 elige cuando llega el carry real del bloque anterior. Delay O(√N).</li>
+  <li><strong>Suma especulativa (speculation):</strong> la técnica del CSLA de calcular ambas respuestas posibles antes de saber cuál es correcta. Se paga área extra (duplicar sumadores) a cambio de delay.</li>
+  <li><strong>Mux 2:1:</strong> multiplexor de 2 entradas y 1 salida. <code>y = sel ? d1 : d0</code>, o estructuralmente <code>y = (d0 &amp; ~sel) | (d1 &amp; sel)</code>. Es el componente que "elije" entre las dos sumas especulativas.</li>
+  <li><strong>Bloque (block size):</strong> cantidad de bits por bloque del CSLA (en este ejercicio, 4). El delay del CSLA depende de la cantidad de bloques: cada bloque agrega ~un mux.</li>
+</ul>
+  
+<h3>Modelo y medición</h3>
+<ul>
+  <li><strong>Delay de propagación:</strong> tiempo que tarda la salida de una compuerta en responder a un cambio de entrada.</li>
+  <li><strong>Modelo de compuertas (del curso):</strong> xor = 2 ns, and/or/not = 1 ns. De ahí se derivan todos los delays medidos en los ejercicios.</li>
+  <li><strong>Fan-in:</strong> cantidad de entradas de una compuerta (o de un término lógico). <strong>Fan-out:</strong> cantidad de cargas (entradas de otras compuertas) que debe manejar la salida de una señal.</li>
+</ul>
+
+<h4>¿Qué se busca: fan-in y fan-out <em>bajos</em>?</h4>
+<ul>
+  <li><strong>Fan-in bajo:</strong> una compuerta de pocas entradas es más rápida y chica (en CMOS, las entradas se implementan con transistores en serie: más entradas = más delay). Un fan-in alto se paga con compuertas grandes o descomponiendo el término en un árbol de gates, que a su vez agrega niveles de delay.</li>
+  <li><strong>Fan-out bajo:</strong> cada carga agrega capacitancia a la red, y más capacitancia hace más lenta la transición de la señal. Un fan-out alto se paga insertando <em>buffers</em> (repetidores), que cuestan área y delay.</li>
+  <li><strong>La regla práctica:</strong> se diseñan los bloques para mantener ambos bajos y constantes. Cuando un fan-out alto es inevitable (señales de control que gobiernan varios muxes), se búffera la señal.</li>
+</ul>
+
+<h4>CSLA vs CLA en el ejercicio</h4>
+<table>
+  <tr><th>Propiedad</th><th>CSLA16</th><th>CLA16 (bloques de 4)</th></tr>
+  <tr><td>Fan-in lógico máx.</td><td><strong>2</strong> — todo es de 2 entradas: el FA (xor/and/or de 2) y el mux (or de 2). Es plano, no crece con el ancho.</td><td><strong>hasta 5</strong> — <code>c[4] = g3 | (p3&amp;g2) | (p3&amp;p2&amp;g1) | (p3&amp;p2&amp;p1&amp;g0) | (p3&amp;p2&amp;p1&amp;p0&amp;cin)</code> tiene productos de hasta 5 literales. Crece con el tamaño del bloque: por eso el lookahead se limita a ~4 bits y se encadena.</td></tr>
+  <tr><td>Fan-in físico de cada gate</td><td>2</td><td>2 — el código lo arma con un árbol de ands/ors de 2 entradas (el fan-in alto del término se "paga" en niveles del árbol, no en un gate grande).</td></tr>
+  <tr><td>Fan-out máx.</td><td><strong>5</strong> — <code>cblk[i]</code> (el carry entre bloques) es el <code>sel</code> de los 5 muxes del bloque siguiente: 4 de suma + 1 de carry.</td><td><strong>4</strong> — <code>cin</code> (c[0]) alimenta los 4 términos del lookahead: <code>t1_c1</code>, <code>t2_c2</code>, <code>t3_c3</code>, <code>t4_c4</code>. <code>g[0]</code> alimenta 2.</td></tr>
+  <tr><td>Cómo crece al agrandar N</td><td>Fan-in plano; el fan-out se mantiene en 5 (siempre 5 muxes por bloque).</td><td>Fan-in y fan-out crecen con el bloque (k bits → términos de k+1 entradas y k cargas). Por eso a N grande se agregan niveles de lookahead en vez de bloques grandes.</td></tr>
+</table>
+<p><strong>Lectura:</strong> el CLA logra su velocidad pagando fan-in lógico creciente (su techo es el tamaño de bloque); el CSLA paga fan-out de 5 en el carry entre bloques pero mantiene el fan-in plano. En ambos el fan-out es bajo y se mantiene — <code>cblk[i]</code> podría bufferearse si fuera necesario.</p>
+<p><strong>Estructural vs comportamental:</strong> estructural = instanciar compuertas/módulos explícitos; comportamental = describir con <code>assign</code>/expresiones. El curso pide estructural para poder medir delay con el modelo de compuertas.</p>
+
+<h3>Verilog / SystemVerilog usado en el ejercicio</h3>
+<ul>
+<li><strong>generate-for:</strong> bloque que instancia lógica repetida en tiempo de elaboración. Requiere <code>genvar</code> y un nombre de bloque (<code>begin : nombre</code>).</p>
+<li><strong>Part-select indexado (<code>a[i*4 +: 4]</code>):</strong> selecciona 4 bits empezando en <code>i*4</code>, hacia arriba. Evita errores de índice en generate.</p>
+<li><strong>localparam time:</strong> constante de tiempo para delays (<code>localparam time TXOR = 2ns;</code>).</p>
+<li><strong>Testbench self-checking:</strong> testbench que compara el DUT contra un modelo de referencia y reporta PASS/FAIL, sin que un humano mire la forma de onda.</p>
+<li><strong>Cross-check:</strong> comparar el DUT contra OTRO sumador correcto (RCA/CLA) estimulado con lo mismo; cuatro sumadores correctos deben coincidir.</p>
+</ul>
+
+<h3>Métricas de comparación</h3>
+<ul>  
+<li><strong>Gate count (conteo de compuertas):</strong> estimación de área contando compuertas de 2 entradas. En este curso: FA = 5 gates, mux2 = 4 gates, y se verifica con Yosys.</p>
+<li><strong>F<sub>max</sub>:</strong> máxima frecuencia de reloj = 1 / (path crítico). A menor delay del sumador, mayor F<sub>max</sub> posible.</p>
+<li><strong>O(N), O(log N), O(√N):</strong> notación de cómo crece el delay con el ancho N del sumador. RCA=O(N), CLA=O(log N), CSLA=O(√N).</p>
+</ul>
+
+</main>
+</body>
+</html>

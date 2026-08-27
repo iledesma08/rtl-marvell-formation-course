@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lección 4 — csla16.sv y rca4.sv línea por línea</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/quiz.js" defer></script>
+</head>
+<body>
+<main>
+
+<div class="lesson-header">
+  <p class="kicker">Lección 4 · Ejercicio 3 — Carry Select Adder</p>
+  <h1>csla16.sv y rca4.sv, línea por línea</h1>
+  <p class="lede">La lección 3 fue el "qué". Acá vamos al "cómo": cada declaración, cada generate, cada conexión de los archivos que vas a mostrar. Es la lección más densa, pero es la que te prepara para el Q&A del profesor.</p>
+  <div class="meta">
+    <span class="tag">Ejercicio 3</span>
+  </div>
+</div>
+
+<h2>El objetivo de esta lección</h2>
+<p>Al terminar vas a poder recorrer <code>csla16.sv</code> de arriba a abajo sin errores: qué son las señales internas, por qué el bloque 0 está fuera del <code>generate</code>, qué hace <code>a[i*4 +: 4]</code>, y por qué el mux se arma con compuertas. Tené los dos archivos abiertos mientras leés.</p>
+
+<h2>1. El mapa del módulo</h2>
+<p>El archivo <code>csla16.sv</code> define dos módulos: <code>csla16</code> (el sumador completo) y <code>mux2</code> (el mux 2:1 estructural que usa). El orden no importa para la simulación, pero conviene mostrarlo así.</p>
+<pre><code>module csla16 (
+  input  logic [15:0] a,        // operando A (16 bits)
+  input  logic [15:0] b,        // operando B
+  input  logic        cin,      // carry de entrada externo
+  output logic [15:0] sum,      // suma
+  output logic        cout      // carry de salida
+);</code></pre>
+
+<h2>2. Las señales internas</h2>
+<pre><code>logic [4:0] cblk;              // carry por bloque: cblk[0]=cin, cblk[4]=cout
+logic [3:0] sum0 [1:3];        // resultado del bloque i con cin=0
+logic [3:0] sum1 [1:3];        // resultado del bloque i con cin=1
+logic       cout0 [1:3];       // carry del bloque i con cin=0
+logic       cout1 [1:3];       // carry del bloque i con cin=1
+
+assign cblk[0] = cin;          // el primer carry es el externo</code></pre>
+<p>Las claves:</p>
+<ul>
+  <li><code>cblk</code> es un vector de 5 bits: <code>cblk[0] = cin</code>, <code>cblk[4] = cout</code>, y los del medio son los carries entre bloques. Es la "columna vertebral" del sumador.</li>
+  <li><code>sum0 [1:3]</code> es un <strong>arreglo no empaquetado</strong> (unpacked array): tres elementos —bloques 1, 2 y 3— y cada elemento es un vector de 4 bits. No existe <code>sum0[0]</code>: el bloque 0 no especula. Por eso el rango va de 1 a 3.</li>
+  <li><code>cout0/cout1</code> son arreglos de un bit por bloque, para el carry especulativo.</li>
+</ul>
+
+<h2>3. El bloque 0, afuera del generate</h2>
+<pre><code>rca4 u_blk0 (
+  .a   (a[3:0]),
+  .b   (b[3:0]),
+  .cin (cblk[0]),        // usa el cin real, no especula
+  .sum (sum[3:0]),
+  .cout(cblk[1])         // su carry-out gobierna el mux del bloque 1
+);</code></pre>
+<p>Un solo RCA, sin mux. Es el único bloque que conoce su carry de entrada desde el principio.</p>
+
+<h2>4. El generate de bloques especulativos</h2>
+<pre><code>genvar i;
+genvar k;
+generate
+  for (i = 1; i &lt; 4; i = i + 1) begin : sel_blocks
+    rca4 u_rca0 (
+      .a   (a[i*4 +: 4]),
+      .b   (b[i*4 +: 4]),
+      .cin (1'b0),
+      .sum (sum0[i]),
+      .cout(cout0[i])
+    );
+    rca4 u_rca1 (
+      .a   (a[i*4 +: 4]),
+      .b   (b[i*4 +: 4]),
+      .cin (1'b1),
+      .sum (sum1[i]),
+      .cout(cout1[i])
+    );
+    ...
+  end
+endgenerate</code></pre>
+<ul>
+  <li><strong><code>genvar</code> + <code>generate</code>:</strong> el loop no se ejecuta en simulación; se "desenrolla" en tiempo de elaboración. Cada iteración crea instancias reales con nombres jerárquicos (p. ej. <code>sel_blocks[1].u_rca0</code>).</li>
+  <li><strong>Bloque con nombre (<code>begin : sel_blocks</code>):</strong> obligatorio en el generate-for. Da el nombre de la jerarquía y permite referirse a señales dentro.</li>
+  <li><strong>Los dos RCAs son idénticos</strong> salvo el <code>cin</code>: <code>1'b0</code> en <code>u_rca0</code>, <code>1'b1</code> en <code>u_rca1</code>. Esa es la especulación: misma entrada, distinta suposición.</li>
+</ul>
+
+<h2>5. El part-select <code>a[i*4 +: 4]</code></h2>
+<p>Para que el bloque <code>i</code> tome sus 4 bits de <code>a</code>, se escribe <code>a[i*4 +: 4]</code>: "4 bits hacia arriba empezando en <code>i*4</code>".</p>
+<pre><code>i=0 → a[0 +: 4] = a[3:0]
+i=1 → a[4 +: 4] = a[7:4]
+i=2 → a[8 +: 4] = a[11:8]
+i=3 → a[12 +: 4] = a[15:12]</code></pre>
+<p>Es un <em>indexed part-select</em>. La ventaja sobre escribir <code>a[i*4 + 3 -: 4]</code> o calcular rangos a mano: el índice base se calcula en el generate y el <code>+: 4</code> siempre "va para arriba", evitando errores de límite. Mismo patrón en <code>rca4.sv</code> y en los <code>cla16</code> del ejercicio 2.</p>
+
+<h2>6. Los muxes de suma (generate interno)</h2>
+<pre><code>for (k = 0; k &lt; 4; k = k + 1) begin : sum_mux
+  mux2 u_mux_s (
+    .sel (cblk[i]),        // carry del bloque ANTERIOR
+    .d0  (sum0[i][k]),     // resultado suponiendo cin=0
+    .d1  (sum1[i][k]),     // resultado suponiendo cin=1
+    .y   (sum[i*4 + k])    // bit de suma definitivo
+  );
+end</code></pre>
+<ul>
+  <li>Como <code>mux2</code> es de 1 bit, se instancian <strong>4 muxes por bloque</strong> (uno por bit de suma) con un segundo <code>generate</code> anidado en <code>k</code>.</li>
+  <li>La convención de conexión es la clave: <code>d0</code> recibe la versión <code>cin=0</code> y <code>d1</code> la versión <code>cin=1</code>, porque <code>mux2</code> elige <code>d1</code> cuando <code>sel=1</code>. Si <code>cblk[i]=0</code>, la respuesta correcta era la del RCA con cin 0.</li>
+</ul>
+
+<h2>7. El mux del carry</h2>
+<pre><code>mux2 u_mux_c (
+  .sel (cblk[i]),
+  .d0  (cout0[i]),         // carry-out si cin era 0
+  .d1  (cout1[i]),         // carry-out si cin era 1
+  .y   (cblk[i + 1])       // carry real hacia el siguiente bloque
+);</code></pre>
+<p>El carry-out del bloque <em>también</em> depende de cuál suposición era correcta, así que se selecciona con otro mux del mismo tipo. El resultado alimenta <code>cblk[i+1]</code>, que a su vez es el <code>sel</code> del bloque siguiente: por eso el carry "salta" de bloque en bloque por los muxes.</p>
+
+<h2>8. El <code>mux2</code> estructural</h2>
+<pre><code>module mux2 (
+  input  logic sel, d0, d1,
+  output logic y        // y = (d0 &amp; ~sel) | (d1 &amp; sel)
+);
+  localparam time TAND = 1ns;
+  localparam time TOR  = 1ns;
+  localparam time TNOT = 1ns;
+
+  not #(TNOT) u_not (sel_b, sel);
+  and #(TAND) u_and0 (t0, d0, sel_b);
+  and #(TAND) u_and1 (t1, d1, sel);
+  or  #(TOR)  u_or   (y, t0, t1);
+endmodule</code></pre>
+<p>El mux es la ecuación <code>y = (d0 &amp; ~sel) | (d1 &amp; sel)</code> hecha compuertas. Los caminos de delay:</p>
+<ul>
+  <li><strong><code>sel → y</code>: 3 ns</strong> (not + and + or). Es el camino del carry entre bloques.</li>
+  <li><strong><code>d0/d1 → y</code>: 2 ns</strong> (and + or). Es el camino de las sumas especulativas (que ya estaban listas).</li>
+</ul>
+
+<div class="callout ojo">
+  <p class="callout-label">Preguntas típicas del profesor</p>
+  <ul>
+    <li><strong>"¿Por qué el mux es estructural y no <code>assign y = sel ? d1 : d0</code>?"</strong> Para que la medición de delay sea consistente con el modelo de compuertas de los ejercicios 1 y 2 (xor=2ns, and/or/not=1ns). Un mux comportamental sintetizaría a otra cosa y el path crítico no sería comparable.</li>
+    <li><strong>"¿Por qué <code>sum0</code> es un arreglo y no 6 señales sueltas?"</strong> Porque el <code>generate</code> necesita indexar por bloque: <code>sum0[i]</code> con <code>i</code> genvar.</li>
+    <li><strong>"¿Y si querés bloques de 8 bits?"</strong> Cambiás el tamaño de <code>rca4</code> (o usás <code>rca</code> parametrizado), el <code>for</code> del medio de <code>k</code> a 8, y el rango de bloques a <code>N/8</code>. La estructura no cambia.</li>
+    <li><strong>"¿El bloque 0 podría ser especulativo también?"</strong> No aportaría nada: su <code>cin</code> se conoce al inicio, no hay nada que esperar.</li>
+  </ul>
+</div>
+
+<h2>Repasá con un quiz</h2>
+
+<div class="quiz" data-correct="3" data-explain="El +: 4 siempre selecciona 4 bits 'hacia arriba' desde el índice base i*4: a[i*4 +: 4] = a[i*4+3 : i*4].">
+  <p class="quiz-q">1. El part-select <code>a[i*4 +: 4]</code> selecciona:</p>
+  <div class="quiz-opts">
+    <button class="quiz-opt">Cuatro bits abajo</button>
+    <button class="quiz-opt">Todo el vector</button>
+    <button class="quiz-opt">Un solo bit</button>
+    <button class="quiz-opt">Cuatro bits arriba</button>
+  </div>
+  <p class="quiz-feedback"></p>
+</div>
+
+<div class="quiz" data-correct="2" data-explain="Se usan compuertas primitivas con delays 1 ns para que el delay del mux sea medible y comparable con el modelo de los ejercicios 1 y 2.">
+  <p class="quiz-q">2. ¿Por qué el mux se arma con compuertas?</p>
+  <div class="quiz-opts">
+    <button class="quiz-opt">Ocupa menos área</button>
+    <button class="quiz-opt">Corre más rápido</button>
+    <button class="quiz-opt">Mide igual el delay</button>
+    <button class="quiz-opt">Usa menos cables</button>
+  </div>
+  <p class="quiz-feedback"></p>
+</div>
+
+<div class="quiz" data-correct="0" data-explain="El bloque 0 recibe cin real: no hay dos resultados que elegir, así que se instancia aparte, sin generate ni mux.">
+  <p class="quiz-q">3. ¿Por qué el bloque 0 queda fuera del generate?</p>
+  <div class="quiz-opts">
+    <button class="quiz-opt">No lleva mux</button>
+    <button class="quiz-opt">Es el más corto</button>
+    <button class="quiz-opt">Suma más rápido</button>
+    <button class="quiz-opt">Usa otro rca</button>
+  </div>
+  <p class="quiz-feedback"></p>
+</div>
+
+<h2>Para profundizar</h2>
+<ul>
+  <li>Releé <code>csla16.sv</code> y <code>rca4.sv</code> con esta lección al lado. Verificá los nombres jerárquicos que genera el <code>generate</code> (p. ej. <code>sel_blocks[1].u_rca0.u_fa[0]</code>) en las ondas de GTKWave.</li>
+  <li>Glosario: <a href="../reference/glosario.html">Glosario — sumadores binarios y CSLA</a> (entradas generate-for, part-select, estructural).</li>
+  <li>Compará con el CLA del ejercicio 2: el mismo patrón de <code>generate</code> y part-select aparece en <code>cla16.sv</code>.</li>
+</ul>
+
+<div class="primary-source">
+  <p class="label">Recurso principal de esta lección</p>
+  <p>El código mismo del ejercicio, <code>csla16.sv</code> y <code>rca4.sv</code>, junto con el testbench <code>tb_csla.sv</code> (que documenta el conteo de gates de cada célula). Para el part-select y los generate en SystemVerilog, la referencia IEEE 1800 es la fuente canónica; una guía accesible es <a href="https://www.chipverify.com/verilog/verilog-generate-block">ChipVerify — Generate Blocks</a>.</p>
+</div>
+
+<nav class="nav">
+  <a href="0003-la-idea-del-csla-suma-especulativa.html">← Lección 3: la idea del CSLA</a>
+  <a href="0005-verificacion-y-medicion.html">Siguiente: verificación y medición →</a>
+</nav>
+
+</main>
+</body>
+</html>

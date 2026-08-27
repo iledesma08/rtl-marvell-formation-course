@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lección 5 — Verificación y medición del CSLA</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/quiz.js" defer></script>
+</head>
+<body>
+<main>
+
+<div class="lesson-header">
+  <p class="kicker">Lección 5 · Ejercicio 3 — Carry Select Adder</p>
+  <h1>Verificación y medición: tb_csla.sv y run.sh</h1>
+  <p class="lede">Vas a correr <code>bash run.sh</code> delante del profesor. Esta lección te prepara para explicar qué hace cada parte de la salida: la verificación funcional, el cross-check, la medición de delay y el conteo de gates con Yosys.</p>
+  <div class="meta">
+    <span class="tag">Ejercicio 3</span>
+  </div>
+</div>
+
+<h2>El objetivo de esta lección</h2>
+<p>Al terminar vas a poder explicar <em>cómo se sabe</em> que el CSLA suma bien y <em>de dónde salen</em> los 16 ns y los 200 gates de la tabla. La clave del enfoque: el testbench es <strong>self-checking</strong> — nadie mira formas de onda, el testbench compara contra un modelo de referencia y reporta PASS/FAIL.</p>
+
+<h2>1. La estrategia en tres capas</h2>
+<p>El testbench no tira 1500 vectores a lo loco: verifica en tres niveles, de lo más chico a lo más grande:</p>
+<table>
+  <tr><th>Capa</th><th>Qué verifica</th><th>Vectores</th></tr>
+  <tr><td>[1/3] rca4 exhaustivo</td><td>la célula del CSLA</td><td>512 (256 × cin)</td></tr>
+  <tr><td>[2/3] csla16 bordes</td><td>los casos límite</td><td>4</td></tr>
+  <tr><td>[3/3] csla16 random</td><td>el sumador completo</td><td>1000</td></tr>
+</table>
+
+<h2>2. La célula: rca4 exhaustivo</h2>
+<pre><code>for (i = 0; i &lt; 256; i = i + 1) begin
+  apply_rca4("exhaustivo", i[3:0], i[7:4], 1'b0);
+  apply_rca4("exhaustivo", i[3:0], i[7:4], 1'b1);
+end</code></pre>
+<p>El truco: con <code>i</code> recorriendo 0…255, <code>i[3:0]</code> da <code>a</code> y <code>i[7:4]</code> da <code>b</code> — así se barren las 256 combinaciones de <code>(a,b)</code> de 4 bits en un solo loop. Y cada una se prueba con <code>cin=0</code> y <code>cin=1</code>: 512 vectores. Para 4 bits esto es barato (los 4 bits de <code>a</code> y <code>b</code>); para el CSLA de 16 bits ya no sería viable (2³²), por eso ahí se usa random.</p>
+<p>La referencia no es el DUT: el testbench calcula <code>expected4 = va + vb + vcin</code> con el operador <code>+</code> de SystemVerilog y compara. Un sumador "de oro" independiente.</p>
+
+<h2>3. Los bordes del csla16</h2>
+<pre><code>apply_and_check("0+0",     '0, '0, 1'b0);
+apply_and_check("max+max", '1, '1, 1'b0);   // carry-out = 1
+apply_and_check("max+cin", '1, '0, 1'b1);   // carry-out = 1
+apply_and_check("max+1",   '1, 1, 1'b0);    // sum=0, cout=1</code></pre>
+<p>Los bordes son los casos donde más fácil es equivocarse: <code>0+0</code> (todo ceros), <code>max+max</code> (todo unos → desborda), <code>max+cin</code> y <code>max+1</code> (la suma da 0 con carry-out 1). Son los cuatro vectores "didácticos" del enunciado del ejercicio 1, reciclados acá.</p>
+
+<h2>4. Random + cross-check: la parte ingeniosa</h2>
+<pre><code>for (i = 0; i &lt; NRAND; i = i + 1)
+  apply_and_check("random", $urandom(seed), $urandom(seed), $urandom(seed) &amp; 1'b1);</code></pre>
+<p>Dos decisiones importantes:</p>
+<ul>
+  <li><strong>Semilla fija (<code>seed = 2026</code>):</strong> <code>$urandom(seed)</code> con semilla genera la misma secuencia cada vez que se corre. La verificación es reproducible: si pasa hoy, pasa siempre. Un random sin semilla no te dejaría "mostrar que siempre pasa".</li>
+  <li><strong>Cross-check:</strong> además de comparar contra <code>expected = a + b + cin</code> (el modelo de oro), el testbench instancia <strong>tres sumadores más</strong> — RCA16, CLA16 v1 y CLA16 v2 — estimulados con lo mismo, y exige que los cuatro coincidan:</li>
+</ul>
+<pre><code>expected = va + vb + vcin;
+if ((sum_csla !== expected[15:0]) || (cout_csla !== expected[16])) errors++;// vs. modelo
+if ((sum_csla !== sum_rca)     || (cout_csla !== cout_rca))    errors++;   // vs. RCA
+if ((sum_csla !== sum_cla)     || (cout_csla !== cout_cla))    errors++;   // vs. CLA v1
+if ((sum_csla !== sum_cla_v2)  || (cout_csla !== cout_cla_v2)) errors++;   // vs. CLA v2</code></pre>
+<p>Cuatro sumadores implementados <em>de formas completamente distintas</em> (ripple, lookahead, y el propio CSLA) no pueden coincidir en 1000 vectores por casualidad si uno estuviera mal. Es una red de seguridad extra sobre el modelo de oro. El testbench espera <code>#(2*N16 + 5)</code> = 37 ns entre vector y vector: suficiente para que el más lento (el RCA, 32 ns) estabilice.</p>
+
+<h2>5. La medición de delay</h2>
+<p>El delay se mide por simulación con los delays del modelo de compuertas, no por análisis estático. La técnica:</p>
+<pre><code>always @(cout_csla)     t_last_csla_cout = $time;   // monitor del carry-out
+always @(sum_csla[15])  t_last_csla_sum  = $time;   // monitor del bit de suma</code></pre>
+<p>Los monitores "anotan" cada vez que cambia la salida. El paso de medición:</p>
+<ol>
+  <li>Se estabiliza el estado previo <code>(0,0,0)</code> y se captura <code>t0</code>.</li>
+  <li>Se aplica el peor caso: <code>a='1, b=1, cin=0</code> → <code>0xFFFF + 1</code>. El bit 0 genera carry y tiene que recorrer los 16 bits.</li>
+  <li>Se espera a que <code>t_last</code> cambie y se calcula <code>delay = t_last − t0</code>.</li>
+</ol>
+<p>Se miden <strong>dos salidas por arquitectura</strong>: <code>cout</code> (el carry que recorre todo) y <code>sum[15]</code> (el bit de suma más significativo). Son caminos distintos: <code>sum[15]</code> pasa por los muxes de <em>suma</em>, <code>cout</code> por los muxes de <em>carry</em>.</p>
+
+<h2>6. El conteo de gates (área)</h2>
+<p>El área no se mide: se <strong>estima contando compuertas</strong>. El testbench define el costo de cada célula (FA = 5 gates, mux2 = 4, cla4 = 35) y deriva el total con fórmulas estructurales:</p>
+<pre><code>GATES_CSLA = GATES_RCA4 + 3 * (2 * GATES_RCA4 + 5 * GATES_MUX2);   // = 200</code></pre>
+<p>O sea: bloque 0 (1 rca4) + 3 bloques × (2 rca4 + 5 muxes). Pero un conteo "de memoria" no alcanza para convencer: <code>run.sh</code> lo <strong>verifica contra el netlist real</strong>:</p>
+<pre><code>sanitize() { sed -E '/localparam time/d; s/#\([^)]*\)//g' "$1"; }   // Yosys no acepta
+                                                                     // delays ni localparam time
+count_gates() {
+  yosys -p "read_verilog -sv ...; hierarchy -top $1; flatten; techmap; stat" \
+    | awk '/Number of cells/{print $NF}'
+}</code></pre>
+<p>Yosys sintetiza el diseño a compuertas primitivas, aplanado, y cuenta las celdas. Las cuatro arquitecturas deben dar el mismo número que el cálculo estructural:</p>
+<pre><code>CSLA16     yosys= 200 manual= 200  OK
+CLA16 v1   yosys= 140 manual= 140  OK
+CLA16 v2   yosys= 167 manual= 167  OK
+RCA16      yosys=  80 manual=  80  OK</code></pre>
+<p>Nota de detalle: a Yosys hay que pasarle una copia "sanitaria" de las fuentes porque no acepta <code>localparam time</code> ni los delays <code>#(...)</code> — esos se quitan con <code>sed</code> porque solo sirven para la simulación, no para contar lógica.</p>
+
+<h2>Repasá con un quiz</h2>
+
+<div class="quiz" data-correct="1" data-explain="Además del modelo de oro (a+b+cin), el tb compara contra el RCA y los dos CLA: cuatro implementaciones distintas no coinciden por casualidad.">
+  <p class="quiz-q">1. ¿Qué hace el testbench con el RCA y los CLA?</p>
+  <div class="quiz-opts">
+    <button class="quiz-opt">Mide su consumo</button>
+    <button class="quiz-opt">Compara los resultados</button>
+    <button class="quiz-opt">Duplica la lógica</button>
+    <button class="quiz-opt">Acorta el delay</button>
+  </div>
+  <p class="quiz-feedback"></p>
+</div>
+
+<div class="quiz" data-correct="0" data-explain="0xFFFF + 1: el bit 0 genera carry y tiene que recorrer los 16 bits — el path crítico real.">
+  <p class="quiz-q">2. ¿Con qué estímulo se mide el peor caso?</p>
+  <div class="quiz-opts">
+    <button class="quiz-opt">FFFF + 1</button>
+    <button class="quiz-opt">0 + 0</button>
+    <button class="quiz-opt">Cifras iguales</button>
+    <button class="quiz-opt">Max + max</button>
+  </div>
+  <p class="quiz-feedback"></p>
+</div>
+
+<div class="quiz" data-correct="3" data-explain="El conteo de gates estima el área; run.sh lo verifica sintetizando con Yosys y contando las celdas del netlist.">
+  <p class="quiz-q">3. ¿Qué verifica el conteo con Yosys?</p>
+  <div class="quiz-opts">
+    <button class="quiz-opt">El delay medido</button>
+    <button class="quiz-opt">La suma correcta</button>
+    <button class="quiz-opt">El clock mínimo</button>
+    <button class="quiz-opt">El área estimada</button>
+  </div>
+  <p class="quiz-feedback"></p>
+</div>
+
+<h2>Para profundizar</h2>
+<ul>
+  <li>Releé <code>tb_csla.sv</code> completo: las dos tasks (<code>apply_rca4</code> y <code>apply_and_check</code>), los monitores y el bloque de medición. Cada sección tiene su comentario explicando el porqué.</li>
+  <li>Corré <code>bash run.sh</code> vos mismo y seguí la salida con esta lección al lado.</li>
+  <li>Glosario: <a href="../reference/glosario.html">Glosario — sumadores binarios y CSLA</a> (entradas testbench self-checking, cross-check, gate count).</li>
+</ul>
+
+<div class="primary-source">
+  <p class="label">Recurso principal de esta lección</p>
+  <p>Los archivos del propio ejercicio — <code>tb_csla.sv</code> y <code>run.sh</code> — son la fuente primaria: están documentados línea por línea en los comentarios. Como referencia general de testbenches self-checking en Verilog, <a href="https://www.chipverify.com/verilog/verilog-testbench">ChipVerify — Testbench</a>.</p>
+</div>
+
+<nav class="nav">
+  <a href="0004-csla16-linea-por-linea.html">← Lección 4: el código línea por línea</a>
+  <a href="0006-comparativa-y-presentacion.html">Siguiente: comparativa y presentación →</a>
+</nav>
+
+</main>
+</body>
+</html>

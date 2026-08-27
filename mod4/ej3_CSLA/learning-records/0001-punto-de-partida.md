@@ -1,0 +1,3 @@
+# Punto de partida: arquitecturas de sumadores desde cero
+
+El usuario parte de cero en arquitecturas de sumadores (no domina RCA/CLA/CSLA), aunque tiene resueltos los ejercicios 1 y 2 del curso. Su objetivo concreto es presentar el ejercicio 3 (CSLA de 16 bits) esta semana ante un profesor que puede hacer preguntas teóricas y de implementación. Implicación: las lecciones deben construir desde los fundamentos (suma binaria, full adder, RCA) pero avanzar rápido hacia el CSLA, y cada una debe aterrizar en algo que pueda decir en la presentación.

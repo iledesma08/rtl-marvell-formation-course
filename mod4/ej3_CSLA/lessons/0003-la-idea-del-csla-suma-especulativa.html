@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lección 3 — La idea del CSLA: suma especulativa y el mux</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/quiz.js" defer></script>
+</head>
+<body>
+<main>
+
+<div class="lesson-header">
+  <p class="kicker">Lección 3 · Ejercicio 3 — Carry Select Adder</p>
+  <h1>La idea del CSLA: suma especulativa y el mux</h1>
+  <p class="lede">El CSLA ataca el problema del carry con una jugada distinta al CLA: en vez de calcular el carry más rápido, calcula las dos respuestas posibles por adelantado y elige cuando llega el carry real.</p>
+  <div class="meta">
+    <span class="tag">Ejercicio 3</span>
+  </div>
+</div>
+
+<h2>El objetivo de esta lección</h2>
+<p>Al terminar vas a poder explicar <em>qué</em> hace el CSLA y <em>por qué</em> es rápido, con el camino crítico y el costo de área. El detalle línea por línea del código queda para la lección 4.</p>
+
+<h2>1. La jugada: especular</h2>
+<p>El problema de fondo es que el bloque <code>i</code> de un sumador no puede hacer nada útil hasta saber su carry de entrada. El CSLA responde: <strong>¿y si calculamos las dos posibilidades y elegimos después?</strong></p>
+<p>Cada bloque (menos el primero) contiene <strong>dos RCAs de 4 bits en paralelo</strong>, que arrancan a sumar <em>al mismo tiempo</em>:</p>
+<ul>
+  <li>uno supone que el carry de entrada es <strong>0</strong> → produce <code>sum0</code> y <code>cout0</code>;</li>
+  <li>el otro supone que es <strong>1</strong> → produce <code>sum1</code> y <code>cout1</code>.</li>
+</ul>
+<p>Cuando por fin llega el carry real del bloque anterior, un <strong>mux 2:1</strong> elige cuál de las dos respuestas era la correcta. La suma ya estaba calculada: solo falta seleccionarla.</p>
+<p>Esto es <strong>suma especulativa</strong> — la misma idea de la "ejecución especulativa" de las CPUs (adivinar el resultado antes de saber la condición y descartar la opción equivocada). El precio es obvio: se duplica hardware. El beneficio es que el carry ya no tiene que atravesar el bloque completo.</p>
+
+<h2>2. La estructura de un bloque</h2>
+<pre><code>        a[7:4]   b[7:4]
+           │       │
+   ┌───────┴───────┴────────┐
+   │      rca4 (cin = 0)    │─── sum0  cout0
+   │      rca4 (cin = 1)    │─── sum1  cout1
+   └───────┬────────┬───────┘
+           │        │
+      ┌────┴────────┴─────┐
+      │  mux 2:1 (×5)     │   sel = cblk[i]   (carry del bloque anterior)
+      └────┬────────┬─────┘
+           │        │
+        sum[7:4]  cblk[i+1]</code></pre>
+<p>Se necesitan 5 muxes por bloque: 4 para cada uno de los bits de la suma y 1 para el carry de salida (el carry de salida también depende de cuál opción se elige). El mux se controla con <code>cblk[i]</code>, el carry que viene del bloque <em>anterior</em>.</p>
+
+<h2>3. El CSLA de 16 bits completo</h2>
+<table>
+  <tr><th>Bloque</th><th>bits</th><th>rca cin=0</th><th>rca cin=1</th><th>muxes de selección</th><th>sel</th></tr>
+  <tr><td>0</td><td>3:0</td><td>— (usa el cin real)</td><td>—</td><td>0</td><td>—</td></tr>
+  <tr><td>1</td><td>7:4</td><td>sí</td><td>sí</td><td>5</td><td>cblk[1]</td></tr>
+  <tr><td>2</td><td>11:8</td><td>sí</td><td>sí</td><td>5</td><td>cblk[2]</td></tr>
+  <tr><td>3</td><td>15:12</td><td>sí</td><td>sí</td><td>5</td><td>cblk[3]</td></tr>
+</table>
+<p>La columna <strong>muxes de selección</strong> cuenta cuántos muxes lleva cada bloque: el bloque 0 lleva <strong>0</strong> (no especula: su carry de entrada <code>cin</code> se conoce desde el principio); los bloques especulativos 1, 2 y 3 llevan <strong>5 cada uno</strong> — 4 para la suma + 1 para el carry. En total el CSLA16 tiene 15 muxes (0 + 5×3).</p>
+
+<h2>4. El camino crítico: por qué es rápido</h2>
+<p>En el peor caso, el carry generado en el bloque 0 ya <strong>no riplea por los 16 bits</strong>: riplea solo dentro del bloque 0 (~8-10 ns) y después atraviesa <strong>el mux de carry de cada bloque</strong> — es <em>uno solo</em> de sus 5 muxes; los 4 de suma van en paralelo seleccionando los bits y no están en este camino. El carry entra por <code>sel</code> del mux de carry y sale por <code>y</code> (~3 ns):</p>
+<pre><code>bloque0:  carry atraviesa 4 FAs          ≈ 8-10 ns
+mux_c b1: sel → y  (carry)               ≈ 3 ns
+mux_c b2: sel → y  (carry)               ≈ 3 ns
+mux_c b3: sel → y  (carry)               ≈ 3 ns
+                                       TOTAL ≈ 16-17 ns   (medido: 16 ns)</code></pre>
+<p>Contra los <strong>32 ns</strong> del RCA16, donde el carry tenía que atravesar 16 FAs. El RCA de 4 bits (célula del CSLA) tiene un delay corto y constante; la ganancia es que ese delay no se multiplica por la cantidad de bloques sino que solo se suma <strong>un mux de carry</strong> por bloque (los muxes de suma quedan fuera del camino crítico).</p>
+<p>Para bloques uniformes de tamaño <code>m</code> y <code>N/m</code> bloques:</p>
+<pre><code>delay ≈ m·t_carry + (N/m − 1)·t_mux</code></pre>
+<p>El tamaño de bloque óptimo (derivando respecto de <code>m</code>) es <code>m ≈ √N</code>. Con N = 16, √16 = 4: por eso este ejercicio usa bloques de 4 bits. El delay resultante crece como <strong>O(√N)</strong>.</p>
+
+<div class="callout ojo">
+  <p class="callout-label">El costo: área</p>
+  <p>La especulación se paga en área. Cada bloque especulativo tiene <strong>dos</strong> RCAs (más los 5 muxes), así que el CSLA usa bastante más lógica que el RCA: 200 gates contra 80 del RCA16. Ese es el trade-off central del ejercicio: <strong>velocidad a cambio de área</strong>.</p>
+</div>
+
+<h2>Repasá con un quiz</h2>
+
+<div class="quiz" data-correct="2" data-explain="Cada bloque especulativo tiene dos RCAs en paralelo, uno suponiendo cin=0 y otro cin=1, y el mux elige al llegar el carry real.">
+  <p class="quiz-q">1. ¿Qué hace un bloque especulativo del CSLA?</p>
+  <div class="quiz-opts">
+    <button class="quiz-opt">Espera el carry</button>
+    <button class="quiz-opt">Resta los bits</button>
+    <button class="quiz-opt">Calcula ambas sumas</button>
+    <button class="quiz-opt">Duplica el clock</button>
+  </div>
+  <p class="quiz-feedback"></p>
+</div>
+
+<div class="quiz" data-correct="0" data-explain="El mux de cada bloque se controla con el carry-out del bloque anterior (cblk[i]).">
+  <p class="quiz-q">2. ¿Qué señal controla el mux?</p>
+  <div class="quiz-opts">
+    <button class="quiz-opt">Carry previo</button>
+    <button class="quiz-opt">Bit signo</button>
+    <button class="quiz-opt">Pulso clk</button>
+    <button class="quiz-opt">Suma total</button>
+  </div>
+  <p class="quiz-feedback"></p>
+</div>
+
+<div class="quiz" data-correct="3" data-explain="El bloque 0 recibe el cin real desde el principio: no hay carry desconocido que esperar, así que un solo RCA alcanza.">
+  <p class="quiz-q">3. ¿Por qué el bloque 0 no lleva mux?</p>
+  <div class="quiz-opts">
+    <button class="quiz-opt">Suma sin carry</button>
+    <button class="quiz-opt">Es el más lento</button>
+    <button class="quiz-opt">Solo genera sum</button>
+    <button class="quiz-opt">Conoce su carry</button>
+  </div>
+  <p class="quiz-feedback"></p>
+</div>
+
+<h2>Para profundizar</h2>
+<ul>
+  <li>Mirá el código de <code>csla16.sv</code> (la parte del <code>generate</code> que arma los bloques 1..3) y <code>rca4.sv</code>. El detalle línea por línea es la lección 4.</li>
+  <li>Glosario: <a href="../reference/glosario.html">Glosario — sumadores binarios y CSLA</a> (entradas Suma especulativa, Mux 2:1, Bloque).</li>
+  <li>Wikipedia: <a href="https://en.wikipedia.org/wiki/Carry-select_adder">Carry-select adder</a> — construcción, bloques uniformes vs variables, y la derivación de O(√n).</li>
+</ul>
+
+<div class="primary-source">
+  <p class="label">Recurso principal de esta lección</p>
+  <p><a href="https://en.wikipedia.org/wiki/Carry-select_adder">Wikipedia: Carry-select adder</a> — la construcción del CSLA (dos RCAs + mux por bloque), el primer bloque sin mux, y la explicación de que el delay ideal se obtiene con bloques de tamaño √N. El papel original: <a href="https://ieeexplore.ieee.org/document/5407919">Bedrij, "Carry-Select Adder", IRE Trans. Electronic Computers, EC-11(3), 1962</a>.</p>
+</div>
+
+<nav class="nav">
+  <a href="0002-generate-propagate-y-cla.html">← Lección 2: Generate/Propagate y el CLA</a>
+  <a href="0004-csla16-linea-por-linea.html">Siguiente: el código línea por línea →</a>
+</nav>
+
+</main>
+</body>
+</html>

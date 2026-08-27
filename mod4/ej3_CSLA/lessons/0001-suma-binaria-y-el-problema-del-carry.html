@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lección 1 — Suma binaria y el problema del carry (RCA)</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/quiz.js" defer></script>
+</head>
+<body>
+<main>
+
+<div class="lesson-header">
+  <p class="kicker">Lección 1 · Ejercicio 3 — Carry Select Adder</p>
+  <h1>Suma binaria y el problema del carry</h1>
+  <p class="lede">Para explicar el CSLA primero tenés que poder explicar el problema que resuelve: el sumador más simple (RCA) es lento porque el carry tiene que recorrer los 16 bits de a uno.</p>
+  <div class="meta">
+    <span class="tag">Base</span>
+    <span class="tag plain">Ejercicio 1</span>
+  </div>
+</div>
+
+<h2>El objetivo de esta lección</h2>
+<p>Al terminar vas a poder explicar, con números, por qué un sumador de 16 bits "naive" (el Ripple Carry Adder del ejercicio 1) tarda 32 ns: el <strong>carry riplea</strong> bit por bit. Ese es exactamente el problema que el Carry Lookahead (ejercicio 2) y el Carry Select (este ejercicio) intentan resolver.</p>
+
+<h2>1. Sumar dos bits: sum y carry</h2>
+<p>Sumar en binario es lo mismo que en decimal, pero la columna solo llega a 1. Cuando dos bits se suman y el resultado no entra en un bit, queda un <strong>carry</strong> que se arrastra a la columna siguiente:</p>
+<table>
+  <tr><th>a</th><th>b</th><th>sum</th><th>carry</th></tr>
+  <tr><td>0</td><td>0</td><td>0</td><td>0</td></tr>
+  <tr><td>0</td><td>1</td><td>1</td><td>0</td></tr>
+  <tr><td>1</td><td>0</td><td>1</td><td>0</td></tr>
+  <tr><td>1</td><td>1</td><td>0</td><td>1</td></tr>
+</table>
+<p>Ese circuito se llama <strong>half adder</strong> (<code>sum = a ^ b</code>, <code>carry = a &amp; b</code>) y solo sirve para el bit menos significativo. Para los demás bits falta un dato: <strong>el carry que viene de la columna anterior</strong>. Ahí aparece el <strong>full adder</strong>.</p>
+
+<h2>2. El full adder (FA), la célula de todo</h2>
+<p>El <strong>full adder</strong> suma tres bits: <code>a + b + cin</code> → <code>sum</code> y <code>cout</code>.</p>
+<ul>
+  <li><code>sum  = a ^ b ^ cin</code></li>
+  <li><code>cout = (a &amp; b) | (cin &amp; (a ^ b))</code></li>
+</ul>
+<p>En el curso el FA se arma <strong>estructural</strong> con compuertas primitivas y delays explícitos (ejercicio 1, <code>full_adder.sv</code>):</p>
+<pre><code>xor #(TXOR) u_xor_p  (p,   a, b);   // p   = a ^ b        (xor: 2 ns)
+and #(TAND) u_and_g  (g,   a, b);   // g   = a &amp; b        (and: 1 ns)
+and #(TAND) u_and_pc (pc,  p, cin); // pc  = p &amp; cin
+or  #(TOR)  u_or_cout(cout, g, pc); // cout = g | pc       (or:  1 ns)
+xor #(TXOR) u_xor_sum(sum,  p, cin);// sum  = p ^ cin      (xor: 2 ns)</code></pre>
+<ul>
+  <li><strong><code>cin → cout</code>: 2 ns</strong> (un <code>and</code> + un <code>or</code>). Es el "salto" del carry dentro de un FA.</li>
+  <li><strong><code>cin → sum</code>: 2 ns</strong> (una sola <code>xor</code>: <code>sum = p ^ cin</code>, y <code>p</code> ya está calculado en paralelo). Aunque la fórmula sea <code>a ^ b ^ cin</code>, el <code>cin</code> no pasa por las dos xors, solo por la última.</li>
+  <li><strong><code>a → sum</code>: 4 ns</strong> (las dos xors en serie: <code>p = a ^ b</code> y luego <code>sum = p ^ cin</code>). Este es el camino de las entradas <code>a/b</code> hasta la suma.</li>
+</ul>
+<p>Ese <code>cin → cout = 2 ns</code> es el número que hay que recordar: va a multiplicarse por la cantidad de bits (cada FA agrega 2 ns al camino del carry)</p>
+
+<h2>3. El Ripple Carry Adder: encadenar FAs</h2>
+<p>Para sumar N bits se encadenan N full adders: el <code>cout</code> del FA <em>i</em> es el <code>cin</code> del FA <em>i+1</em>. Eso es el RCA, y se arma con un <code>generate-for</code>. Por ejemplo, analicemos el <code>rca4.sv</code> que usa el CSLA16:</p>
+<pre><code>logic [4:0] carry;         //  4 bits + carry de salida
+assign carry[0] = cin;     // el carry de entrada del bloque
+
+genvar i;
+generate
+  for (i = 0; i &lt; 4; i = i + 1) begin : fa_chain
+    full_adder u_fa (
+      .a   (a[i]),
+      .b   (b[i]),
+      .cin (carry[i]),
+      .sum (sum[i]),
+      .cout(carry[i + 1])  // el carry del FA i es el cin del FA i+1
+    );
+  end
+endgenerate
+assign cout = carry[4];    // el carry de salida del bloque</code></pre>
+<p>El nombre lo dice todo: el carry <strong>riplea</strong> del bit 0 hast el bit N−1. Cada FA no puede calcular su <code>cout</code> hasta que llega el carry del anterior.</p>
+
+<h2>4. El path crítico: el peor caso</h2>
+<p>El delay de un RCA no es "un promedio" ni una constante: depende de <strong>cuánto tenga que viajar el carry</strong>. El peor caso es cuando el carry recorre <strong>todos</strong> los bits.</p>
+<p>El ejemplo clásico, y el que usa el testbench:</p>
+<pre><code>  0xFFFF
++ 0x0001
+  ------
+  0x0000  con carry-out = 1</code></pre>
+<p>En cada columna se suma <code>1 + 1</code>: genera carry, y ese carry se suma en la columna siguiente, que vuelve a ser <code>1 + 1</code>… El carry generado en el bit 0 tiene que atravesar los 16 bits. Ese es el <strong>path crítico</strong>.</p>
+<p>Con el modelo del curso:</p>
+<ul>
+  <li><strong>RCA de 4 bits:</strong> el camino del carry <code>cin → cout</code> son 4 × 2 ns = <strong>8 ns</strong>. La suma del último bit (<code>sum[3]</code>) sale junto con el carry (8 ns), no después.</li>
+  <li><strong>RCA de 16 bits:</strong> 16 × 2 ns = <strong>32 ns</strong>.</li>
+</ul>
+<p>Conclusion: el delay del RCA crece <strong>linealmente</strong> con N (O(N)). Doblar los bits duplica el delay. Para 4 bits son 8 ns y para 16 ya son 32 ns.</p>
+
+<div class="callout presentacion">
+  <p class="callout-label">¿Cuál es el peor caso de un sumador?</p>
+  <p><code>0xFFFF + 1</code>. El carry genera en el bit 0 y tiene que recorrer los 16 bits. Por esto existe el CLA y el CSLA.</p>
+</div>
+
+<h2>Repasá con un quiz</h2>
+
+<div class="quiz" data-correct="0" data-explain="El carry riplea bit a bit: cada FA agrega ~2 ns al camino del carry. El RCA16 mide 32 ns; doblar N duplica el delay.">
+  <p class="quiz-q">1. ¿Cómo crece el peor delay de un RCA con N bits?</p>
+  <div class="quiz-opts">
+    <button class="quiz-opt">Lineal</button>
+    <button class="quiz-opt">Constante</button>
+    <button class="quiz-opt">Logaritmico</button>
+    <button class="quiz-opt">Cuadratico</button>
+  </div>
+  <p class="quiz-feedback"></p>
+</div>
+
+<div class="quiz" data-correct="3" data-explain="g[i] = a[i] &amp; b[i]. Con a=1 y b=1 el bit genera carry aunque cin sea 0.">
+  <p class="quiz-q">2. ¿Cuándo un bit genera carry sin depender del carry de entrada?</p>
+  <div class="quiz-opts">
+    <button class="quiz-opt">a=1 o b=1</button>
+    <button class="quiz-opt">a=0 y b=0</button>
+    <button class="quiz-opt">a xor b</button>
+    <button class="quiz-opt">a=1 y b=1</button>
+  </div>
+  <p class="quiz-feedback"></p>
+</div>
+
+<div class="quiz" data-correct="1" data-explain="FFFF + 1: en cada columna 1+1 genera carry que se suma en la siguiente, así que el carry recorre los 16 bits.">
+  <p class="quiz-q">3. ¿Qué estímulo fuerza el peor caso del RCA?</p>
+  <div class="quiz-opts">
+    <button class="quiz-opt">FFFF + 0</button>
+    <button class="quiz-opt">FFFF + 1</button>
+    <button class="quiz-opt">0000 + 1</button>
+    <button class="quiz-opt">0000 + 0</button>
+  </div>
+  <p class="quiz-feedback"></p>
+</div>
+
+<h2>Para profundizar</h2>
+<ul>
+  <li>Mirá los archivos del repo: <code>full_adder.sv</code> y <code>rca.sv</code> del ejercicio 1, y <code>rca4.sv</code> del ejercicio 3.</li>
+  <li>Glosario de términos: <a href="../reference/glosario.html">Glosario — sumadores binarios y CSLA</a>.</li>
+  <li>Corré <code>bash run.sh</code> y mirá la fila RCA16 de la tabla comparativa.</li>
+</ul>
+
+<div class="primary-source">
+  <p class="label">Recurso principal de esta lección</p>
+  <p><a href="https://en.wikipedia.org/wiki/Ripple-carry_adder">Wikipedia: Ripple-carry adder</a> — explica el rippling, por qué el peor caso recorre N bits, y la fórmula de delay O(N). Para el full adder, la misma fuente: <a href="https://en.wikipedia.org/wiki/Adder_(electronics)">Adder (electronics)</a>.</p>
+</div>
+
+<nav class="nav">
+  <a href="0002-generate-propagate-y-cla.html">Siguiente: Generate/Propagate y el CLA →</a>
+</nav>
+
+</main>
+</body>
+</html>

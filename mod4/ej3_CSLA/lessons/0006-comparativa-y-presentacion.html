@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lección 6 — Comparativa CSLA vs CLA vs RCA y la presentación</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/quiz.js" defer></script>
+</head>
+<body>
+<main>
+
+<div class="lesson-header">
+  <p class="kicker">Lección 6 · Ejercicio 3 — Carry Select Adder</p>
+  <h1>Comparativa CSLA vs CLA vs RCA, y la presentación</h1>
+  <p class="lede">La lección que ata todo: leer la tabla medida, responder la pregunta del enunciado ("¿cuál preferís si el target es F<sub>max</sub> alta?"), y el guion para presentarlo en 10 minutos sin quedarte sin aire.</p>
+  <div class="meta">
+    <span class="tag">Ejercicio 3</span>
+  </div>
+</div>
+
+<h2>El objetivo de esta lección</h2>
+<p>Al terminar vas a poder defender la tabla comparativa y dar una recomendación con fundamento, además de tener el guion de la presentación y las preguntas del profesor ya respondidas.</p>
+
+<h2>1. La tabla medida (la que vas a mostrar)</h2>
+<p>Medida por <code>tb_csla.sv</code> con el peor caso <code>0xFFFF + 1</code>, mismo modelo de compuertas (xor=2ns, and/or/not=1ns) para las cuatro arquitecturas. Los gates están verificados contra Yosys:</p>
+<table>
+  <tr><th>Arquitectura</th><th>delay cout</th><th>delay sum[15]</th><th>gates</th><th>F<sub>max</sub> ≈</th></tr>
+  <tr><td><strong>RCA16</strong></td><td>32 ns</td><td>32 ns</td><td>80</td><td>~31 MHz</td></tr>
+  <tr><td><strong>CLA16 v1</strong> (1 nivel)</td><td>17 ns</td><td>19 ns</td><td>140</td><td>~59 MHz</td></tr>
+  <tr><td><strong>CSLA16</strong> (tu ejercicio)</td><td>16 ns</td><td>17 ns</td><td>200</td><td>~62 MHz</td></tr>
+  <tr><td><strong>CLA16 v2</strong> (2 niveles)</td><td>13 ns</td><td>16 ns</td><td>167</td><td>~77 MHz</td></tr>
+</table>
+<p><em>F<sub>max</sub></em> es una primera aproximación: en un diseño real el período mínimo es el camino registro-a-registro (con setup/hold y cableado), pero para el sumador aislado vale que <code>F<sub>max</sub> ≈ 1 / delay</code>.</p>
+
+<h2>2. Leer la tabla: el análisis que espera el profesor</h2>
+<ul>
+  <li><strong>CSLA vs RCA:</strong> el CSLA casi duplica la velocidad (16 vs 32 ns) y paga 2.5× de área (200 vs 80). La especulación funcionó.</li>
+  <li><strong>CSLA vs CLA v1:</strong> empate técnico (16 vs 17 ns), pero el CLA v1 usa bastante menos área (140 vs 200). Si solo mirás 16 bits, el CLA v1 es más eficiente.</li>
+  <li><strong>CSLA vs CLA v2:</strong> el CLA v2 gana en <em>ambas</em> métricas (13 ns y 167 gates). Con dos niveles de lookahead, el CLA de 16 bits supera al CSLA.</li>
+</ul>
+<p>Conclusión honesta para la presentación: <strong>para N = 16 y este modelo de compuertas, el CLA v2 es la mejor opción si el target es F<sub>max</sub> alta</strong> (13 ns → ~77 MHz). El CSLA queda segundo (16 ns → ~62 MHz) y paga más área.</p>
+
+<h2>3. ¿Entonces para qué sirve el CSLA?</h2>
+<ul>
+  <li><strong>Escalabilidad:</strong> el delay del CLA v2 crece con <em>niveles</em> (log N), pero cada nivel exige más lógica de bloque y gates de mayor fan-in. El CSLA, con bloques de tamaño creciente (SQRT CSLA), mantiene O(√N) con una estructura siempre igual: solo RCAs y muxes.</li>
+  <li><strong>Regularidad:</strong> el CSLA es un mosaico de bloques idénticos conectados por muxes — fácil de tiling, fácil de dibujar a mano en un layout, sin compuertas de fan-in 17. Esa regularidad importa en diseño de circuitos reales.</li>
+  <p><strong>Historia:</strong> por eso el CSLA (Bedrij, 1962) fue de los primeros sumadores rápidos prácticos: velocidad decente con hardware regular, antes de que los prefix adders dominaran.</p>
+  <p><strong>En la práctica:</strong> las herramientas de síntesis modernas no "eligen" una de estas cuatro arquitecturas: construyen prefix adders (Kogge-Stone, Brent-Kung). Estas arquitecturas se estudian para entender el trade-off delay/área, que es lo que el ejercicio te pide discutir.</p>
+</ul>
+
+<h2>4. Tu recomendación (una frase defendible)</h2>
+<pre><code>"Si el target es F_max alta en N=16, uso CLA v2 (13 ns, 167 gates).
+El CSLA es mi segunda opción: muy cerca en delay (16 ns) y con una
+estructura más regular y escalable a anchos mayores, aunque paga
+más área (200 gates) por la suma especulativa."</code></pre>
+<p>Si el profesor presiona con "¿y a 64 bits?", podés decir: la brecha entre CSLA y CLA cambia con N y con el modelo de compuertas; la respuesta rigurosa sería re-medir (el testbench se adapta cambiando <code>N</code> y los bloques).</p>
+
+<h2>5. Preguntas del profesor (y respuestas cortas)</h2>
+<table>
+  <tr><th>Pregunta</th><th>Respuesta corta</th></tr>
+  <tr><td>¿Por qué el bloque 0 no tiene mux?</td><td>Su carry de entrada (<code>cin</code>) se conoce desde el inicio; no hay nada que especular.</td></tr>
+  <tr><td>¿Por qué dos RCAs por bloque?</td><td>Para precalcular las dos respuestas en paralelo (cin=0 y cin=1); el mux elige la correcta al llegar el carry.</td></tr>
+  <tr><td>¿Cuál es el path crítico?</td><td>El carry del bloque 0 (~8-10 ns) + un mux por bloque (3 ns c/u) ≈ 16 ns.</td></tr>
+  <tr><td>¿Por qué bloques de 4 bits?</td><td>El óptimo para N=16 es √16 = 4: balancea el ripple del primer bloque contra la cantidad de muxes.</td></tr>
+  <tr><td>¿Por qué el mux es estructural?</td><td>Para medir delay</td></tr>
+  <tr><td>¿Cómo mediste el delay?</td><td>Monitores en simulación + estímulo del peor caso (<code>0xFFFF+1</code>), midiendo <code>cout</code> y <code>sum[15]</code> por separado.</td></tr>
+  <tr><td>¿Cómo sabés el área?</td><td>Conteo estructural de gates verificada contra el netlist de Yosys en <code>run.sh</code>.</td></tr>
+  <tr><td>¿Por qué el CLA v2 es más rápido que tu CSLA?</td><td>Porque sus carries entre bloques se calculan en paralelo (segundo lookahead) en vez de saltar por muxes.</td></tr>
+</table>
+
+<div class="callout ojo">
+  <p class="callout-label">Qué NO decir</p>
+  <ul>
+    <li>"El CSLA es el sumador más rápido" — la tabla dice lo contrario para N=16.</li>
+    <li>"El CLA siempre gana" — no es cierto para cualquier N/tecnología; la respuesta depende de las mediciones.</li>
+  </ul>
+</div>
+
+<h2>Repasá con un quiz</h2>
+
+<div class="quiz" data-correct="2" data-explain="Con 13 ns de delay es el de mayor F_max (≈77 MHz); el CSLA queda en 16 ns (~62 MHz).">
+  <p class="quiz-q">1. Según la tabla, ¿cuál da mayor Fmax?</p>
+  <div class="quiz-opts">
+    <button class="quiz-opt">El CLA v1</button>
+    <button class="quiz-opt">El CSLA 16</button>
+    <button class="quiz-opt">El CLA v2</button>
+    <button class="quiz-opt">El RCA 16</button>
+  </div>
+  <p class="quiz-feedback"></p>
+</div>
+
+<div class="quiz" data-correct="3" data-explain="La especulación duplica los RCAs por bloque: 200 gates contra 80 del RCA.">
+  <p class="quiz-q">2. ¿Qué paga el CSLA por su velocidad?</p>
+  <div class="quiz-opts">
+    <button class="quiz-opt">Más delay</button>
+    <button class="quiz-opt">Más clock</button>
+    <button class="quiz-opt">Menos gates</button>
+    <button class="quiz-opt">Más área</button>
+  </div>
+  <p class="quiz-feedback"></p>
+</div>
+
+<div class="quiz" data-correct="0" data-explain="delay ≈ m·t_carry + (N/m)·t_mux; con bloques óptimos m≈√N queda O(√N).">
+  <p class="quiz-q">3. ¿Qué crecimiento de delay tiene el CSLA óptimo?</p>
+  <div class="quiz-opts">
+    <button class="quiz-opt">Raíz de N</button>
+    <button class="quiz-opt">Lineal en N</button>
+    <button class="quiz-opt">Log en N</button>
+    <button class="quiz-opt">Cuadrado en N</button>
+  </div>
+  <p class="quiz-feedback"></p>
+</div>
+
+<h2>Para profundizar</h2>
+<ul>
+  <li>Releé las lecciones 1 a 5 con la tabla a mano: cada número de la tabla sale de una de ellas (32 ns de la 1, 17/13 de la 2, 16 del path crítico de la 3, 200 gates de la 4, la medición de la 5).</li>
+  <li>Glosario: <a href="../reference/glosario.html">Glosario — sumadores binarios y CSLA</a> (entradas F<sub>max</sub>, O(√N), gate count).</li>
+  <li>Para el "¿y a 64 bits?": <a href="https://en.wikipedia.org/wiki/Carry-select_adder">Wikipedia CSLA</a> (secciones uniform vs variable / SQRT) y el paper de Bedrij.</li>
+</ul>
+
+<div class="primary-source">
+  <p class="label">Recurso principal de esta lección</p>
+  <p><a href="https://en.wikipedia.org/wiki/Carry-select_adder">Wikipedia: Carry-select adder</a> — la sección de "variable-sized adder" (SQRT CSLA) explica por qué el CSLA brilla a anchos grandes, y la comparación estructural con el CLA. Es la referencia para defender tu recomendación.</p>
+</div>
+
+<nav class="nav">
+  <a href="0005-verificacion-y-medicion.html">← Lección 5: verificación y medición</a>
+</nav>
+
+</main>
+</body>
+</html>
