@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>5. Glosario y autoevaluación</title>
+  <link rel="stylesheet" href="research.css">
+</head>
+<body>
+<main>
+  <nav class="nav"><a href="index.html">Índice</a> · <a href="lesson-01-mapa-del-divisor.html">Lección interactiva</a> · <a href="../nr_div.sv">RTL</a></nav>
+  <article>
+    <h1>5. Glosario y autoevaluación</h1>
+<h2>Glosario</h2>
+<p><strong>Recíproco</strong></p>
+<p>El valor <code>1/a</code>. Calcularlo permite convertir una división en una multiplicación.</p>
+<p><strong>Normalización</strong></p>
+<p>Transformar una entrada a un intervalo pequeño y controlado, aquí <code>[0.5, 1)</code>.</p>
+<p><strong>Punto fijo</strong></p>
+<p>Representación donde la posición del punto binario es implícita. <code>U(16,16)</code>
+interpreta el entero almacenado dividido por <code>2^16</code>; <code>U(16,15)</code> lo divide por
+<code>2^15</code>.</p>
+<p><strong>ULP</strong></p>
+<p>Un paso entre dos códigos representables consecutivos. En <code>U(16,15)</code>, una ULP
+vale <code>2^-15</code> en el valor real.</p>
+<p><strong>LUT</strong></p>
+<p>Look-Up Table, una tabla de consulta. Aquí contiene ocho semillas aproximadas.</p>
+<p><strong>Semilla</strong></p>
+<p>Estimación inicial <code>y0</code> desde la que Newton comienza a refinar.</p>
+<p><strong>Convergencia cuadrática</strong></p>
+<p>Régimen en el que el error siguiente es proporcional al cuadrado del error
+actual. En la aritmética ideal del recíproco: <code>e_next = -a*e^2</code>.</p>
+<p><strong>Folded datapath</strong></p>
+<p>Datapath que reutiliza un operador en varios pasos temporales. Este diseño usa
+un multiplicador para las dos multiplicaciones de cada iteración.</p>
+<p><strong>FSM</strong></p>
+<p>Máquina de estados finitos. Controla la secuencia <code>IDLE</code>, <code>MUL1</code>, <code>MUL2</code>, <code>DONE</code>.</p>
+<p><strong>Saturación</strong></p>
+<p>Limitar un resultado al máximo representable, en este caso <code>0xFFFF</code>, en vez de
+dejar que el overflow haga wrap-around.</p>
+<p><strong>Golden model</strong></p>
+<p>Modelo de referencia usado para generar la salida esperada. Aquí Python replica
+los mismos shifts, redondeos y saturación que el RTL.</p>
+<h2>Autoevaluación</h2>
+<p>Intenta responder sin mirar los otros documentos y luego comprueba en
+<a href="03-lectura-del-rtl.html">03-lectura-del-rtl.html</a>.</p>
+<ol>
+<li>¿Por qué <code>a</code> usa escala <code>2^16</code> pero <code>y</code> escala <code>2^15</code>?</li>
+<li>¿Qué producto se calcula en <code>MUL1</code> y cuál en <code>MUL2</code>?</li>
+<li>¿Por qué la expresión <code>t</code> resta <code>p1_hi</code> a <code>0x10000</code>?</li>
+<li>¿Qué información se perdería si se hiciera solo <code>p1 &gt;&gt; 16</code>?</li>
+<li>¿Por qué la LUT usa <code>(a &gt;&gt; 12) &amp; 7</code>?</li>
+<li>¿Cuántos multiplicadores necesita esta implementación para <code>N_ITER=4</code>?</li>
+<li>¿Qué ocurre con <code>y</code> cuando el estado vuelve a <code>IDLE</code>?</li>
+<li>¿Qué condición de uso permite que <code>done</code> sea un pulso de un ciclo?</li>
+</ol>
+<h2>Respuestas cortas</h2>
+<ol>
+<li>Porque <code>a</code> está en <code>[0.5,1)</code> y <code>y</code> en <code>(1,2]</code>; <code>y</code> necesita un bit entero.</li>
+<li><code>a_reg*y_reg</code>; después <code>t*y_reg</code>.</li>
+<li>Porque <code>2</code> vale <code>2^16</code> en la escala <code>U(16,15)</code>.</li>
+<li>El redondeo al más cercano; el shift solo trunca.</li>
+<li>Para convertir los ocho grupos de <code>0.0625</code> del rango normalizado en índices 0-7.</li>
+<li>Uno, reutilizado en el tiempo.</li>
+<li>Conserva el último resultado en <code>y_reg</code>.</li>
+<li>Que <code>start</code> sea un pulso y se retire antes o al llegar a <code>DONE</code>.</li>
+</ol>
+<h2>Siguiente conversación</h2>
+<p>Si alguna respuesta no resulta intuitiva, pregunta específicamente por la señal,
+el ciclo o la escala que te confunde. La siguiente práctica natural es cambiar
+<code>N_ITER</code>, predecir la latencia antes de simular y explicar una forma de onda
+<code>MUL1 -&gt; MUL2</code> ciclo por ciclo.</p>
+  </article>
+  <footer class="footer">Investigación guiada del ejercicio Newton-Raphson. Si algo no queda claro, pregunta por la señal, el ciclo o la escala exacta.</footer>
+</main>
+</body>
+</html>
