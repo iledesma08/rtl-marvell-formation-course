@@ -76,6 +76,18 @@ Además del multiplicador tenemos un restador (`t = 2 − p1[31:16]`), tres suma
 
 ### (c) FSM de control con flag `done`
 
+![FSM](FSM_Prolijo.jpeg)
+
+| Estado actual | Condición | Acciones en el flanco | Siguiente estado |
+|---|---|---|---|
+| `IDLE` | `start=0` | (espera) | `IDLE` |
+| `IDLE` | `start=1` | `a_reg<=a`, `y_reg<=y0`, `iter<=0` | `MUL1` |
+| `MUL1` | siempre | `p1_reg<=a*y` | `MUL2` |
+| `MUL2` | `iter==N_ITER-1` | `y_reg<=y_new` | `DONE` |
+| `MUL2` | `iter!=N_ITER-1` | `y_reg<=y_new`, `iter<=iter+1` | `MUL1` |
+| `DONE` | `start=0` | — | `IDLE` |
+| `DONE` | `start=1` | (mantiene resultado) | `DONE` |
+
 La FSM es `IDLE → (MUL1 → MUL2) × N_ITER → DONE`:
 
 - `start`: arranca una división (el dato `a` debe estar válido en ese ciclo).
@@ -110,6 +122,8 @@ Barre la **totalidad** del rango (los 32768 valores de `[0.5, 1.0)`) y mide el e
   2 | NR x2    |            2  |    3.803e-05 |    7.156e-06 |        14.68
   3 | NR x3    |            1  |    3.052e-05 |    4.140e-06 |        15.00
   4 | NR x4    |            1  |    3.052e-05 |    4.140e-06 |        15.00
+
+![grafico](output_ej4.png)
 
 > **Conclusión:** con la LUT de 8 entradas y **3 iteraciones** alcanzamos 1 ULP, que es el piso de precisión de `U(16,15)` (error ~`3·10⁻⁵ = 2⁻¹⁵`). La cuarta iteración no aporta nada en punto fijo. El gráfico queda en `output_ej4.png`.
 
