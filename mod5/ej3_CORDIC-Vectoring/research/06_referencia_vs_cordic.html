@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="css/research.css">
+  <title>Comparación con la referencia directa</title>
+</head>
+<body>
+  <header class="doco">
+    <h1>Comparación con la referencia directa</h1>
+    <p class="subtitle">Trade-off área ↔ precisión</p>
+    <nav class="doco">« <a href="05_decisiones_clave.html">Anterior</a> · <a href="00_README.html">Índice</a></nav>
+  </header>
+  <h1>06 — Comparación: CORDIC vs referencia directa (<code>ref_direct.sv</code>)</h1>
+<p>El objetivo del ejercicio es comparar dos caminos que calculan lo mismo, para
+entender el <strong>trade-off área ↔ precisión</strong>.</p>
+<h2>El camino "directo" (<code>ref_direct.sv</code>)</h2>
+<p>Es la manera "naive" de resolver <code>R = sqrt(x²+y²)</code> y <code>φ = atan(y/x)</code>:</p>
+<ol>
+<li><strong>Un multiplicador 16×16→32 reutilizado:</strong> calcula <code>x²</code> y <code>y²</code> en dos
+   ciclos (mux por estado <code>SQ1</code>/<code>SQ2</code>). Suma → <code>s = x² + y²</code>.</li>
+</ol>
+<pre><code class="language-systemverilog">assign mul_a   = (state == SQ1) ? x : y;
+assign mul_out = mul_a * mul_a;
+</code></pre>
+<ol start="2">
+<li><strong>ROM de raíz cuadrada</strong> de <code>64K×16 = 1 Mbit</code>, indexada por los 16 bits
+   más significativos de <code>s</code> (<code>s[30:15]</code>) → <code>R</code>.</li>
+</ol>
+<pre><code class="language-systemverilog">assign sqrt_val = sqrt_mem[s_cap[30:15]];
+</code></pre>
+<ol start="3">
+<li>
+<p><strong>Divisor restoring</strong> combinacional (16 etapas) que calcula
+   <code>q = min(|x|,|y|) / max(|x|,|y|) ∈ [0,1]</code> en <code>U(16,16)</code>.</p>
+</li>
+<li>
+<p><strong>ROM de atan</strong> de <code>64K×16 = 1 Mbit</code>, indexada por <code>q</code> → <code>atan(q)/π</code>. Si
+   <code>|y| &gt; |x|</code> se complementa a <code>π/2</code> y se reconstruye el cuadrante según los
+   signos de <code>x</code> e <code>y</code>.</p>
+</li>
+</ol>
+<p><strong>FSM:</strong> <code>IDLE → SQ1 → SQ2 → IDLE</code>. Latencia de <strong>2 ciclos</strong> desde <code>start</code>.</p>
+<h2>Cómo se compara</h2>
+<p>El testbench (<code>tb_cordic_vect.sv</code>) instancia <strong>ambos</strong> módulos en paralelo y
+para cada vector verifica:</p>
+<ol>
+<li><strong>Protocolo:</strong> <code>done</code> es pulso de 1 ciclo; latencia CORDIC = 16 ciclos,
+   referencia = 2 ciclos.</li>
+<li><strong>Exactitud vs valor "verdadero":</strong> calcula <code>R</code> y <code>φ</code> reales con
+   <code>$sqrt</code>/<code>$atan2</code> en doble precisión y mide el error en <strong>ULP</strong>.</li>
+<li><strong>Cross-check:</strong> CORDIC vs referencia (redondean distinto, pero deben
+   coincidir dentro de una tolerancia).</li>
+</ol>
+<h2>Área (Yosys: <code>flatten + techmap + stat</code>)</h2>
+<table>
+<thead>
+<tr>
+<th>Arquitectura</th>
+<th style="text-align: right;">Celdas lógicas</th>
+<th style="text-align: right;">ROM (bits)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>CORDIC vectoring</td>
+<td style="text-align: right;">17293</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td>Referencia mult+ROM</td>
+<td style="text-align: right;">15779</td>
+<td style="text-align: right;">2097152</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Lectura:</strong></p>
+<ul>
+<li>El CORDIC <strong>no tiene memoria</strong>: su tablita de 16 valores queda absorbida en
+  la lógica combinacional (<code>always_comb</code> + <code>case</code>).</li>
+<li>La referencia necesita <strong>2 Mbit</strong> (2 × 64K × 16), que en un FPGA Artix-7 son
+  ~64 BRAMs de 32 Kb.</li>
+<li>La referencia tiene <em>menos</em> lógica pura (15779 vs 17293) porque no usa
+  <em>barrel shifters</em> (desplazamientos por <code>i</code> variable) ni el escalado por <code>K</code>;
+  pero su área <strong>total</strong> (lógica + memoria) domina claramente.</li>
+</ul>
+<h2>Precisión (error en ULP vs valor en doble precisión)</h2>
+<table>
+<thead>
+<tr>
+<th>Q</th>
+<th>R CORDIC max/med</th>
+<th>R ref max/med</th>
+<th>φ CORDIC max/med</th>
+<th>φ ref max/med</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>I</td>
+<td>3 / 0.89</td>
+<td>1 / 0.26</td>
+<td>4 / 1.06</td>
+<td>1 / 0.04</td>
+</tr>
+<tr>
+<td>II</td>
+<td>4 / 0.87</td>
+<td>1 / 0.22</td>
+<td>3 / 0.96</td>
+<td>1 / 0.02</td>
+</tr>
+<tr>
+<td>III</td>
+<td>3 / 0.90</td>
+<td>1 / 0.25</td>
+<td>4 / 1.00</td>
+<td>1 / 0.01</td>
+</tr>
+<tr>
+<td>IV</td>
+<td>3 / 0.99</td>
+<td>1 / 0.30</td>
+<td>4 / 0.96</td>
+<td>1 / 0.03</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Lectura:</strong></p>
+<ul>
+<li>CORDIC: <strong>≤ 4 ULP</strong> (peor caso) y <strong>~1 ULP de media</strong> en todos los
+  cuadrantes. La media de ~1 ULP es el error típico de la cuantización a
+  punto fijo; los picos de 3–4 ULP aparecen en vectores con ángulos
+  pronunciados o cerca de los ejes donde se acumulan los redondeos.</li>
+<li>Referencia: <strong>1 ULP</strong> exacto — la ROM de 64K con el cociente de 16 bits deja
+  el error en el piso de la cuantización.</li>
+<li><strong>La diferencia de precisión es mínima (≤ 3 ULP); la de área es enorme
+  (0 vs 2 Mbit).</strong></li>
+</ul>
+<h2>Qué dice el gráfico (<code>output_ej3.png</code>)</h2>
+<p><code>analisis_error.py</code> (numpy + PIL, sin matplotlib) recorre <code>datos/errores.csv</code> y
+dibuja el error por cuadrante. La conclusión es que el error es <strong>uniforme</strong>
+en los 4 cuadrantes — no se degrada en II/III, lo que confirma que la
+pre-rotación de 180° + corrección <code>±π</code> funcionan bien.</p>
+<h2>¿Cuándo usar cuál?</h2>
+<ul>
+<li><strong>CORDIC:</strong> presupuesto de área ajustado, no importa 1–3 ULP extra, se quiere
+  determinismo (siempre 16 ciclos), o se quiere evitar memorias (BRAMs libres
+  para otra cosa). Cero multiplicador, cero ROM.</li>
+<li><strong>Referencia directa:</strong> se busca el máximo de precisión (1 ULP), hay BRAMs de
+  sobra, y se prefiere un resultado "exacto". A costa de 2 Mbit de ROM.</li>
+</ul>
+<p>El README lo dice bien: <em>"si el presupuesto de área es ajustado, el CORDIC es
+el camino; si queremos el máximo de precisión y hay ROM/BRAM de sobra, la
+referencia gana por poco."</em></p>
+<hr />
+<p><strong>Fin de la guía.</strong> Volvé al <a href="00_README.html">índice</a> si querés repasar algún tema.</p>
+  <footer class="doco">
+    <p>Guía de estudio — CORDIC Vectoring · Comparación con la referencia directa</p>
+    <p><a href="00_README.html">Volver al índice</a></p>
+  </footer>
+</body>
+</html>

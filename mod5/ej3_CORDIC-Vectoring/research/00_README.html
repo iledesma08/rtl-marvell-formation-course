@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="css/research.css">
+  <title>CORDIC Vectoring — Índice de la guía</title>
+</head>
+<body>
+  <header class="doco">
+    <h1>CORDIC Vectoring — Índice de la guía</h1>
+    <p class="subtitle">Documentación del módulo cordic_vect.sv</p>
+    <nav class="doco"><a href="00_README.html">Índice</a> · <a href="01_que_es_cordic.html">Siguiente »</a></nav>
+  </header>
+  <p>Esta carpeta explica, <strong>desde lo básico</strong>, qué hace el módulo CORDIC en modo
+<em>vectoring</em>, cómo lo hace y qué función cumple dentro del ejercicio 3.</p>
+<p>Los documentos están ordenados para leerse en secuencia:</p>
+<table>
+<thead>
+<tr>
+<th>Doc</th>
+<th>Tema</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="01_que_es_cordic.html">01_que_es_cordic</a></td>
+<td>La idea del algoritmo CORDIC: rotaciones en hardware</td>
+</tr>
+<tr>
+<td><a href="02_modo_vectoring.html">02_modo_vectoring</a></td>
+<td>Qué significa "modo vectoring" y qué resuelve</td>
+</tr>
+<tr>
+<td><a href="03_formato_datos.html">03_formato_datos</a></td>
+<td>Punto fijo <code>S(16,15)</code> / <code>S(16,14)</code> / <code>S(18,15)</code>: cómo se leen los números</td>
+</tr>
+<tr>
+<td><a href="04_desglose_del_codigo.html">04_desglose_del_codigo</a></td>
+<td>Recorrido línea a línea de <code>cordic_vect.sv</code></td>
+</tr>
+<tr>
+<td><a href="05_decisiones_clave.html">05_decisiones_clave</a></td>
+<td>Las decisiones de diseño que importan (K, pre-rotación, cuadrante, redondeo)</td>
+</tr>
+<tr>
+<td><a href="06_referencia_vs_cordic.html">06_referencia_vs_cordic</a></td>
+<td>Cómo se compara contra la referencia directa (<code>ref_direct.sv</code>)</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p><strong>Lenguaje de archivos:</strong> los archivos usan comentarios en español. Acá
+mantenemos la misma jerga: <code>phi</code>/<code>φ</code> = ángulo, <code>R</code> = magnitud, <code>ULP</code> = unidad
+en el último lugar (un paso del formato).</p>
+</blockquote>
+<h3>Lo esencial en 30 segundos</h3>
+<p><code>cordic_vect</code> recibe un vector <code>(x, y)</code> en punto fijo y devuelve:</p>
+<pre><code>R   = sqrt(x^2 + y^2)     &lt;- magnitud del vector
+phi = atan(y/x)           &lt;- ángulo del vector, en los 4 cuadrantes
+</code></pre>
+<p>Lo hace <strong>sin multiplicador real ni ROMs grandes</strong>: solo sumas, restas,
+desplazamientos aritméticos y una tablita de 16 valores (<code>atan(2^-i)</code>).</p>
+<p>Si ya conocés el CORDIC básico del ejercicio 1 y solo querés la parte de
+vectoring, empezá por <code>02_modo_vectoring.md</code>.</p>
+  <footer class="doco">
+    <p>Guía de estudio — CORDIC Vectoring · CORDIC Vectoring — Índice de la guía</p>
+    <p><a href="00_README.html">Volver al índice</a></p>
+  </footer>
+</body>
+</html>

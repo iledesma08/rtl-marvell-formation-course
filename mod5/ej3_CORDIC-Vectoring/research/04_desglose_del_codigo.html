@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="css/research.css">
+  <title>Desglose línea a línea de cordic_vect.sv</title>
+</head>
+<body>
+  <header class="doco">
+    <h1>Desglose línea a línea de cordic_vect.sv</h1>
+    <p class="subtitle">Recorrido del datapath folded</p>
+    <nav class="doco">« <a href="03_formato_datos.html">Anterior</a> · <a href="00_README.html">Índice</a> · <a href="05_decisiones_clave.html">Siguiente »</a></nav>
+  </header>
+  <h1>04 — Desglose línea a línea de <code>cordic_vect.sv</code></h1>
+<p>Este documento recorre el módulo de arriba a abajo, en el mismo orden en que
+está escrito el archivo. Usamos los números de línea del archivo original.</p>
+<h2>Cabecera y comentario (líneas 1–36)</h2>
+<p>El bloque de comentario inicial resume las <strong>dos salidas</strong> y los <strong>formatos</strong>:</p>
+<pre><code>R   = sqrt(x^2 + y^2)     &lt;- S(16,15) saturado
+phi = atan(y/x)           &lt;- S(16,14) en unidades de π
+</code></pre>
+<p>Arquitectura: <strong>folded</strong> = el mismo datapath se reutiliza en <code>N_ITER = 16</code>
+ciclos (una iteración por ciclo). Ver <code>05</code> para qué significa "folded".</p>
+<h2>Interfaz del módulo (líneas 37–49)</h2>
+<pre><code class="language-systemverilog">module cordic_vect (
+  input  logic                clk,
+  input  logic                rst_n,
+  input  logic                start,        // pulso que inicia un cálculo
+  input  logic signed [15:0]  x,            // S(16,15)
+  input  logic signed [15:0]  y,            // S(16,15)
+  output logic signed [15:0]  R,            // S(16,15) saturado
+  output logic signed [15:0]  phi,          // S(16,14), unidades de π
+  output logic                done,         // pulso de 1 ciclo: resultado listo
+  output logic                busy           // está trabajando
+);
+</code></pre>
+<ul>
+<li><code>start</code>: dispara un cálculo (un pulso).</li>
+<li><code>done</code>: pulso de 1 ciclo cuando el resultado está listo.</li>
+<li><code>busy</code>: alto mientras el datapath está resolviendo iteraciones.</li>
+<li><code>R</code>, <code>phi</code>: los resultados, válidos el mismo ciclo en que se ve <code>done</code>.</li>
+</ul>
+<h2>Constantes (líneas 51–53)</h2>
+<pre><code class="language-systemverilog">localparam int N_ITER       = 16;
+localparam signed [15:0] K_Q = 16'sd19898;   // 0.6072529... en S(16,15)
+localparam signed [15:0] PI_1 = 16'sd16384;  // 1.0 en unidades de π
+</code></pre>
+<ul>
+<li><code>N_ITER = 16</code>: 16 iteraciones = 16 ciclos de latencia.</li>
+<li><code>K_Q = 19898</code>: <code>0.6072529 * 2^15 ≈ 19898</code>. La constante de escala del CORDIC.</li>
+<li><code>PI_1 = 16384</code>: <code>π</code> en unidades de π (ver <code>03</code>).</li>
+</ul>
+<h2>Registros del datapath (líneas 55–62)</h2>
+<pre><code class="language-systemverilog">logic signed [17:0] X, Y;        // S(18,15) de 18 bits (guard bits)
+logic signed [17:0] X_next, Y_next;
+logic signed [15:0] Z;           // S(16,14), unidades de π
+logic signed [15:0] Z_next;
+logic        [3:0]  i, i_next;   // índice de iteración (0..15)
+logic               x_neg, y_neg; // signos ORIGINALES para el cuadrante
+logic signed [15:0] atan_val;
+</code></pre>
+<p>Estos son los registros que se actualizan en cada iteración. <code>X_next</code>,
+<code>Y_next</code>, <code>Z_next</code>, <code>i_next</code> son las <strong>versiones combinacionales</strong> del próximo
+valor (se calculan en <code>always_comb</code> y se cargan en el <code>always_ff</code>).</p>
+<h2>Pre-escalado por K (líneas 64–87)</h2>
+<p>Este bloque prepara el vector <code>(x, y)</code> de entrada:</p>
+<pre><code class="language-systemverilog">assign x17 = x;                       // extiende x a 17 bits
+assign y17 = y;
+assign x_rot = x17[16] ? -x17 : x17;  // pre-rotación 180° si x &lt; 0
+assign y_rot = x17[16] ? -y17 : y17;
+
+assign x_prod = $signed(x_rot) * $signed(K_Q);  // x·K en 32 bits
+assign y_prod = $signed(y_rot) * $signed(K_Q);  // y·K en 32 bits
+assign x_ps = (x_prod + 32'sd16384) &gt;&gt;&gt; 15;     // redondea y vuelve a 16 bits
+assign y_ps = (y_prod + 32'sd16384) &gt;&gt;&gt; 15;
+
+// Extiende a S(18,15) de 18 bits
+assign xps18 = x_ps;
+assign yps18 = y_ps;
+</code></pre>
+<p>Desglosemos:</p>
+<ol>
+<li><strong>Extensión a 17 bits</strong> (<code>x17</code>, <code>y17</code>): necesaria porque <code>x</code> es <code>S(16,15)</code>
+   y vamos a negarlo en la pre-rotación. Si <code>x = -32768</code> (el mínimo), <code>-x</code>
+   desbordaría 16 bits, así que se toma en 17.</li>
+<li><strong>Pre-rotación de 180°</strong> (<code>x_rot</code>, <code>y_rot</code>): si <code>x &lt; 0</code> (bit 16 = signo),
+   se usa <code>(-x, -y)</code>. Esto lleva el ángulo al rango de convergencia.</li>
+</ol>
+<pre><code class="language-systemverilog">assign x_rot = x17[16] ? -x17 : x17;
+</code></pre>
+<ol start="3">
+<li><strong>El producto por K</strong> (<code>x_prod</code>, <code>y_prod</code>): <code>signed 17 × signed 16</code> da
+   hasta 33 bits; se declara de 32 (<code>[31:0]</code>). El comentario aclara por qué
+   no puede ser 16: <code>32767 * 19898 ≈ 2^30</code>, no cabe en 16 bits.</li>
+<li><strong>Redondeo a nearest</strong> (<code>&gt;&gt;&gt; 15</code>): después de sumar <code>16384</code> (= <code>2^15 / 2</code>),
+   el <code>&gt;&gt;&gt;</code> es un desplazamiento aritmético (divide por <code>2^15</code>). Sumar la mitad
+   del <code>2^15</code> antes de desplazar = redondear al valor más cercano en vez de
+   truncar.</li>
+<li><strong>Extensión a 18 bits</strong> (<code>xps18</code>, <code>yps18</code>): con <code>S(18,15)</code> para el registro.</li>
+</ol>
+<blockquote>
+<p>Importante: <code>x_neg</code> y <code>y_neg</code> se guardan <strong>después</strong>, en <code>always_ff</code>, usando
+los signos <strong>originales</strong> <code>x[15]</code>, <code>y[15]</code> — no los pre-rotados. Por eso la
+corrección de cuadrante al final sabe el cuadrante real.</p>
+</blockquote>
+<h2>Función de redondeo (líneas 90–101)</h2>
+<pre><code class="language-systemverilog">function automatic logic signed [17:0] round_shift(
+    input logic signed [17:0] v, input logic [3:0] sh);
+  logic signed [17:0] r;
+  begin
+    r = v;
+    if (sh != 0)
+      r = r + (18'sd1 &lt;&lt; (sh - 1));   // suma media LSB para redondear
+    round_shift = r &gt;&gt;&gt; sh;            // desplaza (divide por 2^sh)
+  end
+endfunction
+</code></pre>
+<p><code>round_shift(v, sh)</code> devuelve <code>round(v·2^-sh)</code>. Es la operación clave de las
+micro-rotaciones: desplazar <code>Y</code> e <code>X</code> por <code>i</code>, pero <strong>con redondeo a nearest</strong>.</p>
+<ul>
+<li><code>r + (1 &lt;&lt; (sh-1))</code>: sumar <code>2^(sh-1)</code> redondea.</li>
+<li><code>r &gt;&gt;&gt; sh</code>: desplazamiento aritmético (divide por <code>2^sh</code>, conservando signo).</li>
+</ul>
+<p>Sin este redondeo (truncando a secas), el error del CORDIC subiría 1–2 ULP
+extra. Ver <code>05</code>.</p>
+<h2>Lógica combinacional de la iteración (líneas 103–160)</h2>
+<h3>El <code>always_comb</code> (línea 111)</h3>
+<p>Este bloque calcula los <code>*_next</code>. Recuerda que arranca con <strong>defaults</strong> para
+evitar latches:</p>
+<pre><code class="language-systemverilog">X_next = X;   Y_next = Y;   Z_next = Z;   i_next = i;
+d      = -16'sd1;
+rx = 0;       ry = 0;
+R_next = R;   phi_next = phi;
+</code></pre>
+<h3>El <code>start</code> (líneas 123–130)</h3>
+<pre><code class="language-systemverilog">if (start) begin
+  X_next = xps18;     // precarga el vector pre-escalado
+  Y_next = yps18;
+  Z_next = 16'sd0;    // ángulo arranca en 0
+  i_next = 4'd0;
+end
+</code></pre>
+<p>En el ciclo en que <code>start</code> está activo, <strong>solo se precarga</strong> el vector. La
+iteración 0 se resuelve en el siguiente ciclo, cuando <code>busy = 1</code> e <code>i = 0</code>.</p>
+<h3>El cuerpo de la iteración (líneas 130–143)</h3>
+<pre><code class="language-systemverilog">end else begin
+  // Decision del vectoring: rotar hasta llevar Y a cero.
+  d = (Y &gt;= 0) ? -16'sd1 : 16'sd1;
+
+  // Productos rotacionales con redondeo.
+  rx = round_shift(Y, i);
+  ry = round_shift(X, i);
+
+  X_next = (d == 1) ? X - rx : X + rx;
+  Y_next = (d == 1) ? Y + ry : Y - ry;
+  Z_next = (d == 1) ? Z - atan_val : Z + atan_val;
+
+  i_next = (i == N_ITER - 1) ? 4'd0 : i + 1;
+end
+</code></pre>
+<p>Comparalo con la fórmula teórica de <code>02</code>:</p>
+<pre><code>d = signo:  (y &gt;= 0) ? -1 : +1
+X' = X − d·Y·2^-i
+Y' = Y + d·X·2^-i
+Z' = Z − d·atan(2^-i)
+</code></pre>
+<p>El código lo implementa exactamente:</p>
+<ul>
+<li><code>d = (Y &gt;= 0) ? -1 : +1</code>: el autómata del <code>always_comb</code>. Si <code>Y ≥ 0</code> hay que
+  bajarlo (girar horario, <code>d = -1</code>); si <code>Y &lt; 0</code>, subirlo (<code>d = +1</code>).</li>
+<li><code>rx = round_shift(Y, i)</code> es <code>Y·2^-i</code> con redondeo.</li>
+<li><code>ry = round_shift(X, i)</code> es <code>X·2^-i</code> con redondeo.</li>
+<li>Alternativamente en <code>X_next</code> según <code>d</code>. Cuando <code>d = +1</code>: <code>X - rx</code> e <code>Y + ry</code>
+  (y <code>Z - atan</code>). Cuando <code>d = -1</code>: <code>X + rx</code>, <code>Y - ry</code>, <code>Z + atan</code>.
+  (Recordá que <code>d</code> juega "al revés": la fórmula usa <code>-d</code>. <code>d=+1</code> → <code>X−rx</code>,
+  <code>Y+ry</code>, <code>Z−atan</code>; <code>d=−1</code> → <code>X+rx</code>, <code>Y−ry</code>, <code>Z+atan</code>. Coincide.)</li>
+<li><code>i_next</code>: cuenta ciclos; al llegar a <code>15</code> (última), vuelve a <code>0</code>.</li>
+</ul>
+<h3>Salida <code>R</code> con saturación (líneas 145–151)</h3>
+<pre><code class="language-systemverilog">if (X_next &gt; 18'sd32767)
+  R_next = 16'sd32767;       // satura a 1.0
+else if (X_next &lt; 18'sd0)
+  R_next = 16'sd0;           // no negativo
+else
+  R_next = X_next;           // trunca a 16 bits
+</code></pre>
+<p>Después de 16 iteraciones, <code>X</code> es la magnitud <code>R</code>. Si excede <code>0x7FFF</code> (que es
+<code>1.0</code> en <code>S(16,15)</code>) se satura. Si es negativo (no debería, pero por seguridad)
+da 0. Si no, se truncan los 16 bits bajos (los altos ya son 0 porque
+<code>X &lt; 2^15</code>).</p>
+<h3>Salida <code>phi</code> con corrección de cuadrante (líneas 153–159)</h3>
+<pre><code class="language-systemverilog">if (!x_neg)
+  phi_next = Z_next;            // cuadrante I o IV: φ = z
+else if (!y_neg)
+  phi_next = Z_next + PI_1;     // cuadrante II: φ = z + π
+else
+  phi_next = Z_next - PI_1;     // cuadrante III: φ = z − π
+</code></pre>
+<p>Como la pre-rotación de 180° cambió el signo, hay que <strong>deshacerla</strong> según el
+cuadrante real (guardado en <code>x_neg</code>/<code>y_neg</code>):</p>
+<pre><code>x &gt;= 0           -&gt;  φ = z        (cuadrantes I y IV)
+x &lt; 0, y &gt;= 0    -&gt;  φ = z + π    (cuadrante II)
+x &lt; 0, y &lt;  0    -&gt;  φ = z − π    (cuadrante III)
+</code></pre>
+<p><code>PI_1</code> es <code>π</code> en unidades de π (código: <code>16'sd16384</code>).</p>
+<blockquote>
+<p>Cuidado: acá el <code>if</code> usa <code>x_neg</code>/<code>y_neg</code> que <strong>ya están registrados</strong> en
+<code>always_ff</code>, no los valores combinacionales. Esto es correcto porque son los
+signos originales de entrada.</p>
+</blockquote>
+<h2>Resparto secuencial (líneas 162–199)</h2>
+<h3>El <code>always_ff</code> (línea 165)</h3>
+<p>Este bloque carga los registros en cada flanco.</p>
+<p><strong>Reset</strong> (líneas 166–176): pone todo a 0, <code>busy = 0</code>, <code>done = 0</code>.</p>
+<p><strong>Operación normal</strong> (líneas 177–198):</p>
+<pre><code class="language-systemverilog">done &lt;= 1'b0;                    // done es un pulso de 1 ciclo
+if (start) begin
+  X     &lt;= xps18;                // precarga
+  Y     &lt;= yps18;
+  Z     &lt;= 16'sd0;
+  i     &lt;= 4'd0;
+  busy  &lt;= 1'b1;                 // arranca a resolver
+  x_neg &lt;= x[15];                // guarda signos ORIGINALES
+  y_neg &lt;= y[15];
+end else if (busy) begin
+  X   &lt;= X_next;
+  Y   &lt;= Y_next;
+  Z   &lt;= Z_next;
+  i   &lt;= i_next;
+  R   &lt;= R_next;
+  phi &lt;= phi_next;
+  if (i == N_ITER - 1)
+    done &lt;= 1'b1;                // R/phi válidos en este ciclo
+  busy &lt;= (i != N_ITER - 1);     // sigue hasta la última iteración
+end
+</code></pre>
+<p>Puntos clave:</p>
+<ul>
+<li><code>done &lt;= 1'b0</code> al inicio de cada ciclo: garantiza que <code>done</code> es un <strong>pulso
+  de 1 ciclo</strong> (a menos que en este ciclo se apague en alto).</li>
+<li>En el ciclo de <code>start</code>, se capturan los signos originales en <code>x_neg</code>/<code>y_neg</code>
+  y se pone <code>busy</code>.</li>
+<li>En cada ciclo de <code>busy</code>, se cargan los <code>*_next</code> calculados por el
+  <code>always_comb</code>.</li>
+<li>Cuando <code>i == N_ITER - 1</code> (la iteración 15, la última), se marca <code>done</code> y
+  <code>busy</code> se apaga. En <strong>ese mismo ciclo</strong>, <code>R</code> y <code>phi</code> ya tienen el valor final.</li>
+</ul>
+<h3>Latencia</h3>
+<p>Desde <code>start</code> hasta <code>done</code> hay <code>N_ITER = 16</code> ciclos:
+- Ciclo de <code>start</code>: precarga (iteración i=0 todavía no corre).
+- Ciclos 1..16: iteraciones i = 0..15. Al final del ciclo 16, <code>done</code> y los
+  resultados válidos.</p>
+<h2>La ROM de <code>atan</code> (líneas 201–207)</h2>
+<pre><code class="language-systemverilog">rom_atan u_rom (
+  .index(i),
+  .value(atan_val)
+);
+</code></pre>
+<p>Instancia de <code>rom_atan.sv</code>, que es una ROM de 16 entradas (generada por
+<code>gen_roms.py</code>). <code>i</code> es el índice de iteración; <code>atan_val</code> es el <code>atan(2^-i)</code>
+en unidades de π, <code>S(16,14)</code>. Se usa en la actualización de <code>Z</code>.</p>
+<h3>Cómo es <code>rom_atan.sv</code></h3>
+<pre><code class="language-systemverilog">module rom_atan (
+  input  logic [3:0]         index,       // 0..15
+  output logic signed [15:0] value
+);
+  always_comb begin
+    `include &quot;atan_lut.vh&quot;    // la tabla generada
+  end
+endmodule
+</code></pre>
+<p>El <code>include</code> inyecta un <code>case(index)</code> (ver <code>atan_lut.vh</code>):</p>
+<pre><code>index 0    -&gt;  4096   = atan(1)/π · 2^14 = 0.25
+index 1    -&gt;  2418   = atan(0.5)/π · 2^14
+index 2    -&gt;  1278   ...
+</code></pre>
+<p>Como es <code>always_comb</code> con un <code>case</code> completo, el sintetizador la convierte en
+<strong>lógica combinacional</strong>, no en una ROM real. Por eso el CORDIC reporta
+<code>ROM = 0</code> bits en Yosys.</p>
+<hr />
+<p><strong>Siguiente:</strong> <a href="05_decisiones_clave.html">05_decisiones_clave.md</a></p>
+  <footer class="doco">
+    <p>Guía de estudio — CORDIC Vectoring · Desglose línea a línea de cordic_vect.sv</p>
+    <p><a href="00_README.html">Volver al índice</a></p>
+  </footer>
+</body>
+</html>

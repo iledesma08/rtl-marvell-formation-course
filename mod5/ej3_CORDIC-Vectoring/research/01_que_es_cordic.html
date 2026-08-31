@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="css/research.css">
+  <title>La idea del CORDIC</title>
+</head>
+<body>
+  <header class="doco">
+    <h1>La idea del CORDIC</h1>
+    <p class="subtitle">Computar trigonometría girando vectores</p>
+    <nav class="doco">« <a href="00_README.html">Anterior</a> · <a href="00_README.html">Índice</a> · <a href="02_modo_vectoring.html">Siguiente »</a></nav>
+  </header>
+  <h1>01 — La idea del CORDIC: computar trigonometría girando</h1>
+<h2>El problema</h2>
+<p><code>atan</code>, <code>sqrt</code>, <code>cos</code> y <code>sin</code> son funciones que en hardware de punto fijo son
+caras: requieren multiplicadores, divisores o tablas enormes (ROM).</p>
+<p>El <strong>CORDIC</strong> (COordinate Rotation DIgital Computer) es un algoritmo numérico
+<em>iterativo</em> de la década del 50 que calcula todas esas funciones <strong>solo con
+sumas/restas y desplazamientos</strong> (shift = dividir por potencias de 2). Por eso
+brilla en hardware: un suma/resta y un shifter son baratos en lógica, y no se
+necesita un multiplicador a lo ancho.</p>
+<h2>La intuición geométrica</h2>
+<p>Imaginá un vector <code>(x, y)</code>. Queremos <strong>rotarlo</strong> un ángulo <code>θ</code> — o, en el caso
+que nos importa, <strong>medir</strong> su ángulo.</p>
+<p>La resta/la suma de dos vectores rotados no necesita trigonometría exacta si
+elegís ángulos especiales. Una de las identidades más útiles es:</p>
+<pre><code>tan(θ) = 2^-i          &lt;=&gt;          θ = atan(2^-i)
+</code></pre>
+<p>Es decir: hay ángulos cuyas tangentes son potencias de 2. Girar un vector un
+ángulo <code>atan(2^-i)</code> es <strong>exactamente</strong> equivalente a multiplicar sus
+coordenadas por una matriz <code>R(θ)</code>... pero las tangentes <code>2^-i</code> son potencias
+de 2, así que las coordenadas se multiplican por números de la forma
+<code>1</code> y <code>±2^-i</code>. ¡Y multiplicar por <code>2^-i</code> es un <strong>desplazamiento aritmético</strong>!</p>
+<h2>La rotación elemental</h2>
+<p>La rotación por un ángulo <code>θ</code> se escribe como:</p>
+<pre><code>x' = x·cos(θ) − y·sin(θ)
+y' = x·sin(θ) + y·cos(θ)
+</code></pre>
+<p>Sacando factor común <code>cos(θ)</code>:</p>
+<pre><code>x' = cos(θ) · ( x − y·tan(θ) )
+y' = cos(θ) · ( y + x·tan(θ) )
+</code></pre>
+<p>Si tomamos <code>θ = atan(2^-i)</code>, entonces <code>tan(θ) = 2^-i</code>, y queda:</p>
+<pre><code>x' = cos(θ_i) · ( x − y·2^-i )
+y' = cos(θ_i) · ( y + x·2^-i )
+</code></pre>
+<p>Donde <code>cos(θ_i)</code> es un factor de escala <strong>común</strong> a ambos. <code>2^-i</code> es un
+desplazamiento. <strong>La única multiplicación real es por <code>cos(θ_i)</code>, y eso se
+trata aparte</strong> (ver <code>05_decisiones_clave.md</code>, constante <code>K</code>).</p>
+<h2>Las micro-rotaciones acumuladas</h2>
+<p>El CORDIC no gira un ángulo arbitrario de una vez: lo descompone en una serie
+de <strong>micro-rotaciones</strong> de ángulos prefijados <code>atan(2^0), atan(2^-1),
+atan(2^-2), ...</code>.</p>
+<p>Cada micro-rotación es barata. Si elegimos bien <strong>el signo</strong> de cada una,
+podemos ir "persiguiendo" un objetivo. En cada paso el acumulador de ángulo
+<code>z</code> suma o resta el <code>atan(2^-i)</code> correspondiente.</p>
+<p>Con <code>N</code> iteraciones, el ángulo total cubierto es:</p>
+<pre><code>±atan(2^0) ± atan(2^-1) ± ... ± atan(2^-(N-1))
+</code></pre>
+<p>Ese conjunto de ángulos cubre el rango de convergencia (≈ <code>±0.555π</code> para
+muchas iteraciones). Es el "vocabulario" de ángulos con el que el CORDIC
+compone cualquier ángulo dentro de ese rango.</p>
+<h2>Las dos caras del CORDIC</h2>
+<p>Hay dos modos, que se diferencian en <em>qué</em> se persigue con las rotaciones:</p>
+<ul>
+<li><strong>Modo rotación:</strong> fijo el ángulo <code>θ</code> de entrada y voy rotando el vector de
+  referencia hasta "ganarlo", dejando en <code>x,y</code> el <code>cos θ</code> y <code>sin θ</code>. Es lo que
+  hiciste en el <strong>ejercicio 1</strong>.</li>
+<li><strong>Modo vectoring:</strong> es el que usamos acá. Fijo el vector <code>(x, y)</code> y voy
+  rotando hasta que el vector caiga sobre el eje horizontal (<code>y → 0</code>). Lo que
+  "sobra" en el acumulador <code>z</code> es el ángulo original del vector.</li>
+</ul>
+<h2>Referencia de la idea</h2>
+<ul>
+<li>Halabi &amp; Lang, <em>CORDIC: COordinate Rotation DIgital Computer</em> — el algoritmo
+  original (1960).</li>
+<li>El clásico paper de E. E. Swartzlander, <em>A survey of CORDIC algorithms for
+  FPGA based computers</em> (2005).</li>
+</ul>
+<p>Ambos explican desde cero el mecanismo de las micro-rotaciones y el origen de
+<code>K ≈ 0.60725</code>.</p>
+<hr />
+<p><strong>Siguiente:</strong> <a href="02_modo_vectoring.html">02_modo_vectoring.md</a></p>
+  <footer class="doco">
+    <p>Guía de estudio — CORDIC Vectoring · La idea del CORDIC</p>
+    <p><a href="00_README.html">Volver al índice</a></p>
+  </footer>
+</body>
+</html>
