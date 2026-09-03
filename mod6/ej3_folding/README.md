@@ -15,11 +15,11 @@ Esa holgura es exactamente lo que explota este ejercicio: en vez de un operador 
 
 ## ¿Qué significa "versión iterativa"?
 
-La idea es separar el **qué** se calcula del **cuándo** se calcula. El DFG define las dependencias (qué operación necesita qué datos), pero no dice cuántas unidades de hardware existen. Si asignamos varios nodos del grafo a un mismo operador físico, ese operador los ejecuta en ciclos consecutivos y la FSM se encarga de:
+La idea es separar el **qué** se calcula del **cuándo** se calcula. El DFG describe las dependencias del cálculo (qué operación necesita qué datos), pero no fija cuántas unidades de hardware existen: dice *qué* hay que hacer, no *con cuántos operadores*. El *folding* toma esa misma secuencia y la ejecuta con menos recursos. Al asignar varios nodos del grafo a un mismo operador físico, ese operador deja de trabajar en paralelo y pasa a ejecutarlos **uno por ciclo**, reutilizándose varias veces por muestra. Como el hardware ya no es uno por nodo, hay que resolver tres responsabilidades que el folding agrega:
 
-1. **Enrutar los operandos**: muxes que conectan al recurso compartido el dato correcto en cada ciclo.
-2. **Guardar resultados intermedios**: registros (producto parcial, acumulador) que retienen valores entre ciclo y ciclo.
-3. **Secuenciar**: una FSM de control que recorre el scheduling ciclo a ciclo.
+1. **Enrutar los operandos** — los muxes eligen en cada ciclo las entradas correctas que llegan al recurso compartido. Aquí `sel_k` selecciona el par (tap, coeficiente) entre los cuatro posibles.
+2. **Retener resultados intermedios** — como el resultado de un ciclo no se consume de inmediato, hay que guardarlo entre ciclo y ciclo: los registros de producto $P$ y de acumulador $acc$ conservan los valores parciales mientras el operador trabaja en otra operación.
+3. **Secuenciar** — la FSM de control recorre el scheduling ciclo a ciclo y emite en el momento justo los selectores, los enables de los registros y la señal de aceptación de una muestra nueva.
 
 ## Resolución
 
