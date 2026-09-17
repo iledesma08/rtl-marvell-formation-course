@@ -51,9 +51,6 @@ printf "  Referencia mult+ROM | %14s | %16s\n" "$R_CELLS" "$R_BITS"
 echo "----------------------+----------------+------------------"
 echo ""
 echo "  Nota: la tabla atan del CORDIC (16x16) queda absorbida en la logica (case-based)."
-echo "  La ROM de la referencia son 2 x 64K x 16 = 2 Mbit, que en un FPGA Artix-7 equivalen"
-echo "  a ~64 BRAMs de 32 Kb. La ROM del CORDIC es 0 bits; la de la referencia 2 Mbit."
-
 echo ""
 echo ">>> [5/5] Analisis de error vs cuadrante (Python, output_ej3.png) ..."
 python3 analisis_error.py
