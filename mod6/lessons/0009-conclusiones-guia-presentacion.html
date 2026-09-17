@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>0009 · Conclusiones y guía de presentación</title>
+<link rel="stylesheet" href="../assets/style.css"></head>
+<body><div class="wrap">
+<header class="course"><p>Módulo 6 · Cierre · Ejercicios 1–5</p>
+<h1>0009 · Conclusiones, guion de 10 minutos y anti-preguntas</h1>
+<p class="meta">Win: salir con el hilo narrativo completo, el timing de cada bloque y 8 respuestas anti-preguntas. ⏱ ~15–20 min.</p></header>
+<nav class="lecs"><a href="0008-ejercicio-5-comparacion-ppa.html">← 0008 Ej5</a> · <a href="../reference/glosario.html">Glosario</a> · <a href="0001-fundamentos-fir.html">volver a 0001</a></nav>
+
+<h2>1 · El hilo narrativo (tu columna vertebral)</h2>
+<div class="card">"Partí de la <strong>ecuación</strong> (<a href="0001-fundamentos-fir.html">0001</a>), la dibujé como <strong>DFG</strong> (<a href="0004-ejercicio-1-dfg.html">Ej. 1</a>), medí su <strong>holgura temporal</strong> con ASAP/ALAP (<a href="0005-ejercicio-2-asap-alap.html">Ej. 2</a>), y con esa holgura fui a los dos extremos: <strong>folding</strong> para área mínima (<a href="0006-ejercicio-3-version-iterativa.html">Ej. 3</a>) y <strong>pipeline</strong> para fmax máxima (<a href="0007-ejercicio-4-pipeline-cutset.html">Ej. 4</a>). Cierro comparando <strong>PPA</strong> (<a href="0008-ejercicio-5-comparacion-ppa.html">Ej. 5</a>): el mismo DFG, dos óptimos distintos, técnicas combinables."</div>
+<p>Por qué este orden funciona: cada ejercicio <em>usa</em> el anterior (el DFG alimenta el scheduling; la holgura justifica el folding; el DFG acíclico habilita el cut-set; todo desemboca en PPA). Si te perdés, volvé a esta frase y retomás el hilo sin baches.</p>
+<table><tr><th>Ej</th><th>Números a decir en voz alta</th><th>Idea de una línea</th></tr>
+<tr><td>1</td><td>7 nodos, 3 z⁻¹, feed-forward acíclico</td><td>La ecuación dibujada</td></tr>
+<tr><td>2</td><td>Latencia mínima 4; M₂+1, M₃+2; crítico M₀/M₁→A₁→A₂→A₃</td><td>La holgura medida</td></tr>
+<tr><td>3</td><td>5 ciclos óptimos; lat 6, II 5, Th f/5; FSM 6 estados</td><td>Área por ciclos</td></tr>
+<tr><td>4</td><td>Tcrit 5→4 u.t.; fmax 1/5→1/4 (+25%), +2 ciclos</td><td>Frecuencia por registros</td></tr>
+<tr><td>5</td><td>2 vs 7 operadores; f/5 vs 1/ciclo; combinables</td><td>El trade-off leído junto</td></tr></table>
+
+<h2>2 · Guion de 10 minutos con timing</h2>
+<table><tr><th>Bloque</th><th>Tiempo</th><th>Qué hacés</th></tr>
+<tr><td>⓪ Ecuación</td><td>1'</td><td>Escribís y[n], marcás taps y decís "h son la respuesta al impulso"</td></tr>
+<tr><td>① DFG en pizarra</td><td>2'</td><td>Dibujás retardos→productos→cadena; checklist de 4 síes</td></tr>
+<tr><td>② ASAP/ALAP</td><td>2'</td><td>Recorrés adelante/atrás; tabla de movilidad; camino crítico</td></tr>
+<tr><td>③ Folding + FSM</td><td>2.5'</td><td>Demostrás la cota de 5, el truco del ciclo 2, back-to-back, métricas</td></tr>
+<tr><td>④ Cortes + Tcrit</td><td>1.5'</td><td>Trazás los 2 cortes; max(3,4)=4; +25% con su peaje</td></tr>
+<tr><td>⑤ PPA + cierre</td><td>1'</td><td>Leés la tabla fila con causa; "no son excluyentes"</td></tr></table>
+<p>Reservá 2' de preguntas. Llevá una sola hoja con el quinteto: 4 (lat mín), 5 (ciclos folded), f/5, 1/4 (fmax pipe), trade-off. Si te bloqueás, esos 5 números te rescatan.</p>
+
+<h2>3 · Anti-preguntas (8 respuestas memorizadas)</h2>
+<div class="card">"¿Por qué no 4 ciclos en folding?" → M₁ termina fin del 2 ⇒ A₁≥3 ⇒ A₃≥5 (cota inferior).<br>"¿Pipeline baja latencia?" → No: sube fmax; la latencia en ciclos sube 2.<br>"¿Cuál es mejor, folded o pipeline?" → Según spec PPA; sensor⇒folded, radio⇒pipeline; combinables.<br>"¿Latencia vs II en Ej. 3?" → 6 vs 5: captura + cómputo vs ritmo back-to-back.<br>"¿Por qué sin muxes en el sumador?" → Truco del ciclo 2: acc←M₀, siempre suma (acc,P).<br>"¿Por qué un solo registro en el corte 1?" → Ambas ramas nacen del mismo nodo fuente.<br>"¿Etapas desbalanceadas 3 vs 4?" → Sí, la 2 manda; tercer corte las balancearía con más registros.<br>"¿IPB de este FIR?" → No aplica: sin lazos no hay IPB (eso es el Ej. 6).</div>
+
+<h2>4 · Cómo estudiar con estas 9 lecciones (cierre del curso)</h2>
+<p>Pasada 1: leé 0001→0009 de corrido marcando cada quiz. Pasada 2 (al día siguiente): solo quizzes + tablas de memoria (movilidad, scheduling 5, Tcrit, PPA). Pasada 3 (víspera): exponé en voz alta con el timing de 10' y la hoja de 5 números. Si fallás una anti-pregunta, volvé a su lección —cada una linkea de vuelta—. Cuando las 36 preguntas salgan de corrido, estás listo.</p>
+
+<h2>Fuente primaria</h2>
+<p>Repaso final: <a href="../enunciados.md">enunciados</a> + tus 5 READMEs + <a href="../RESOURCES.md">recursos</a> + <a href="../reference/glosario.html">glosario</a>.</p>
+
+<div class="quiz"><h2>Autoevaluación final · ¿listo para exponer?</h2><p class="meta"><span id="score"></span></p>
+<div class="q"><p>1. El relato completo del módulo ordena…</p>
+<button data-ok="0">Pipeline, folding, ecuación, DFG y PPA final</button>
+<button data-ok="1">Ecuación, DFG, holgura, extremos y PPA final</button>
+<button data-ok="0">PPA, DFG, pipeline, folding y ecuación final</button>
+<div class="fb">✔ Ecuación→DFG→holgura→(folding|pipeline)→PPA. Ese es tu guion de 10'.</div></div>
+<div class="q"><p>2. Si te piden un solo número por ejercicio…</p>
+<button data-ok="1">Cuatro, cinco, efe sobre cinco, un cuarto, trade-off</button>
+<button data-ok="0">Tres, cuatro, efe sobre cuatro, un quinto, empate</button>
+<button data-ok="0">Cinco, seis, efe sobre seis, un tercio, ganancia</button>
+<div class="fb">✔ Lat 4 (Ej2) · 5 ciclos (Ej3) · f/5 · fmax 1/4 (Ej4) · trade-off (Ej5).</div></div>
+<div class="q"><p>3. "¿Pipeline baja la latencia?" Respondés…</p>
+<button data-ok="0">Sí, siempre reduce ciclos y registros del diseño</button>
+<button data-ok="0">Sí, porque duplica operadores en cada etapa nueva</button>
+<button data-ok="1">No, sube fmax pero agrega ciclos y registros</button>
+<div class="fb">✔ Frase exacta para no caer en la trampa clásica del Ej. 4.</div></div>
+<div class="q"><p>4. "¿IPB de este FIR?" Respondés…</p>
+<button data-ok="1">No aplica porque no existen lazos recursivos</button>
+<button data-ok="0">Cuatro por la cadena de sumadores totalmente crítica</button>
+<button data-ok="0">Cinco por los ciclos de la máquina de control</button>
+<div class="fb">✔ IPB exige lazos (IIR, Ej. 6). El FIR feed-forward no tiene.</div></div>
+</div>
+<p class="meta">¿Dudas de último momento? Preguntame y ensayamos tu cierre en voz alta con el timing.</p>
+<footer><a href="0001-fundamentos-fir.html">Repasar desde 0001 →</a> · <a href="../reference/glosario.html">Glosario</a></footer>
+</div><script src="../assets/quiz.js"></script></body></html>

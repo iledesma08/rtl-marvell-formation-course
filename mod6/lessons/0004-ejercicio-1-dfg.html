@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>0004 · Ejercicio 1 — DFG del FIR4</title>
+<link rel="stylesheet" href="../assets/style.css"></head>
+<body><div class="wrap">
+<header class="course"><p>Módulo 6 · Ejercicio 1/5 · DFG</p>
+<h1>0004 · Ejercicio 1: construir el DFG paso a paso</h1>
+<p class="meta">Win: dibujar el DFG en pizarra en ~2 minutos, clasificar cada elemento y cerrar con la frase feed-forward que anticipa los Ej. 2–4. Base: <a href="../ej1_DFG/README.md">tu README Ej. 1</a>. ⏱ ~15–20 min.</p></header>
+<nav class="lecs"><a href="0003-scheduling-y-arquitecturas.html">← 0003</a> · <a href="../reference/glosario.html">Glosario</a> · <a href="0005-ejercicio-2-asap-alap.html">0005 Ej2 →</a></nav>
+
+<h2>1 · Consigna y entregables (qué te piden exactamente)</h2>
+<p><strong>Enunciado:</strong> dibujar el DFG de un FIR de 4 coeficientes en forma directa, identificando explícitamente nodos (operaciones), aristas (flujo de datos) y registros (z⁻¹). <strong>Entregables:</strong><br>① diagrama DFG;<br>② identificación explícita de los tres tipos de elementos. Parece trivial —es el ejercicio que más nota regala si lo presentás con método, y el que más penaliza si lo dibujás "de memoria" con un tap cruzado.</p>
+
+<h2>2 · Resolución en 4 pasos (tu guion oral, con pizarra)</h2>
+<div class="card"><strong>Paso 1 — Ecuación.</strong> Escribo y[n] = h₀x[n]+h₁x[n−1]+h₂x[n−2]+h₃x[n−3] y digo: "todo lo que dibuje sale de acá, término por término".<br><strong>Paso 2 — Línea de retardo.</strong> Dibujo x[n] → 3 z⁻¹ en cascada y marco los 4 taps: x[n], x[n−1], x[n−2], x[n−3]. Digo: "4 taps ⇒ 3 retardos; el tap 0 es el presente".<br><strong>Paso 3 — Productos.</strong> De cada tap saco una flecha a un círculo M<sub>k</sub> con su h<sub>k</sub>: M<sub>k</sub>=x[n−k]·h<sub>k</sub>. Digo: "los 4 productos son independientes: pueden ir en paralelo".<br><strong>Paso 4 — Cadena de sumas.</strong> Encadeno A₁=M₀+M₁, A₂=A₁+M₂, A₃=A₂+M₃=y[n]. Digo: "las sumas sí son secuenciales: cada una necesita la anterior".<br><strong>Cierre.</strong> "7 nodos, aristas dirigidas, 3 registros; grafo acíclico feed-forward, listo para schedular (Ej. 2) y pipelinear (Ej. 4)".</div>
+<figure><img src="../ej1_DFG/DFG_v2.jpeg" alt="DFG del FIR de 4 coeficientes"><figcaption>Tu DFG final (DFG_v2). Recorré con el dedo de arriba abajo: retardos → productos → sumas → y[n].</figcaption></figure>
+
+<h2>3 · Tabla de elementos (la "identificación explícita" que pide la consigna)</h2>
+<table><tr><th>Elemento</th><th>Cantidad</th><th>En tu DFG</th><th>Cómo señalarlo al exponer</th></tr>
+<tr><td><strong>Nodos</strong> (cómputo)</td><td>7</td><td>M₀…M₃ (×), A₁…A₃ (+)</td><td>"Cada círculo transforma: × pesa, + acumula"</td></tr>
+<tr><td><strong>Aristas</strong> (flujo+dependencia)</td><td>—</td><td>x→z⁻¹→M, M→A, A→A→y</td><td>"Cada flecha ordena: sin ella no sé qué va antes"</td></tr>
+<tr><td><strong>Registros z⁻¹</strong> (memoria 1 ciclo)</td><td>3</td><td>Cascada sobre x[n]</td><td>"Cada cuadrado rompe el camino y guarda el pasado"</td></tr></table>
+<p>Detalle que suma puntos: explicá que los z⁻¹ de la línea de retardo son <strong>arquitecturales</strong> (los pide el algoritmo, retienen x[n−k] entre muestras), distintos de los registros de <strong>pipeline</strong> que vas a agregar en el Ej. 4 (que retienen parciales dentro de una misma muestra para subir fmax). Misma celda, distinto propósito.</p>
+
+<h2>4 · Frases para preguntas del público</h2>
+<div class="warn"><ol>
+<li><strong>"¿Por qué cadena de sumas y no un árbol balanceado?"</strong> → Porque la consigna pide la <em>forma directa</em>, que es la ecuación tal cual está escrita: ((M₀+M₁)+M₂)+M₃. Un árbol ((M₀+M₁)+(M₂+M₃)) da el mismo número —la suma es conmutativa— pero es <em>otro DFG</em>: otra profundidad de dependencias, otro scheduling y otro camino crítico. Válido como optimización, inválido como entregable de este ejercicio.</li>
+<li><strong>"¿Los 4 productos pueden ir en paralelo, y las sumas por qué no?"</strong> → Mirá las aristas: entre M₀…M₃ no hay ninguna flecha que los conecte, así que ninguno espera a otro —paralelismo real. En cambio A₂ necesita a A₁ y A₃ necesita a A₂: cada suma espera a la anterior —serialidad forzada por el grafo. El DFG <em>muestra</em> la respuesta.</li>
+<li><strong>"¿Dónde está el camino crítico?"</strong> → Todavía no lo calculo formalmente (eso es el Ej. 2), pero ya se lee: la cadena M₀ (o M₁) → A₁ → A₂ → A₃, 4 nodos con dependencias encadenadas. Anticipo que la latencia mínima será 4 ciclos y que M₂ y M₃, al estar "fuera" de esa cadena, tendrán holgura.</li>
+<li><strong>"¿Y si sumo en otro orden, tipo M₀+M₂ primero?"</strong> → Numéricamente da lo mismo, pero dejás de dibujar la forma directa: tu DFG ya no mapea término a término la ecuación y el corrector te lo marca. Además el orden canónico A₁ = M₀+M₁ pone primero los productos "viejos" (disponibles desde el ciclo 1 junto con todo lo demás en ASAP), que es lo que el Ej. 2 necesita.</li>
+<li><strong>"¿Estos 3 registros son los únicos del diseño final?"</strong> → No: son los <em>arquitecturales</em>, los que pide el algoritmo (la memoria del filtro). En el Ej. 3 vas a agregar P, acc y y_out para el plegado, y en el Ej. 4 dos registros de pipeline. Misma celda, distinto propósito —y saber distinguirlos es media presentación.</li>
+<li><strong>"¿Y el IPB de este filtro?"</strong> → No aplica: el IPB se calcula sobre <em>lazos</em> de realimentación y este grafo no tiene ninguno (todo fluye hacia y[n]). El IPB aparece recién con el IIR del Ej. 6, que queda fuera de esta presentación.</li>
+</ol></div>
+
+<h2>Fuente primaria</h2>
+<p>Tu resolución completa: <a href="../ej1_DFG/README.md">ej1_DFG/README.md</a>. Teoría: Parhi cap. 1; repaso: <a href="0001-fundamentos-fir.html">0001</a> y <a href="0002-anatomia-dfg.html">0002</a>.</p>
+
+<div class="quiz"><h2>Autoevaluación · Ej. 1</h2><p class="meta"><span id="score"></span></p>
+<div class="q"><p>1. ¿Cuántos z⁻¹ necesita el FIR4 directo?</p>
+<button data-ok="0">Cuatro registros porque hay cuatro coeficientes totales</button>
+<button data-ok="1">Tres registros porque hay cuatro taps en cascada</button>
+<button data-ok="0">Dos registros porque la suma usa tres etapas previas</button>
+<div class="fb">✔ Taps−1 = 3 retardos. 4 taps ⇒ 3 z⁻¹; el tap 0 es el presente.</div></div>
+<div class="q"><p>2. ¿Qué son M₀…M₃ en el DFG?</p>
+<button data-ok="1">Nodos producto de cada tap por su coeficiente</button>
+<button data-ok="0">Aristas de flujo entre retardos y sumadores finales</button>
+<button data-ok="0">Registros de línea que guardan muestras ya pasadas</button>
+<div class="fb">✔ M<sub>k</sub> = x[n−k]·h<sub>k</sub>: nodos × independientes, en paralelo.</div></div>
+<div class="q"><p>3. ¿Cómo se forma y[n] desde los productos?</p>
+<button data-ok="0">Con cuatro sumadores en árbol totalmente balanceado</button>
+<button data-ok="0">Con un sumador reutilizado en cinco ciclos seguidos</button>
+<button data-ok="1">Con tres sumadores en cadena incremental simple</button>
+<div class="fb">✔ A₁=M₀+M₁, A₂=A₁+M₂, A₃=A₂+M₃. Cadena lineal de 3 (forma directa).</div></div>
+<div class="q"><p>4. ¿Por qué importa que sea acíclico?</p>
+<button data-ok="1">Permite scheduling simple y pipeline sin cambiar función</button>
+<button data-ok="0">Elimina registros y reduce la latencia a un ciclo</button>
+<button data-ok="0">Evita multiplicadores usando solo sumas y retardos</button>
+<div class="fb">✔ Feed-forward ⇒ cut-set válido (Ej. 4) y sin IPB. Decilo en tu cierre del Ej. 1.</div></div>
+</div>
+<p class="meta">¿Dudas? Preguntame: "¿cómo dibujo el DFG en 60 segundos?" o "verificame mi tabla de elementos".</p>
+<footer><a href="0003-scheduling-y-arquitecturas.html">← 0003</a> · <a href="0005-ejercicio-2-asap-alap.html">0005 Ej2 →</a></footer>
+</div><script src="../assets/quiz.js"></script></body></html>

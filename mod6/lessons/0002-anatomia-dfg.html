@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>0002 · Anatomía del DFG</title>
+<link rel="stylesheet" href="../assets/style.css"></head>
+<body><div class="wrap">
+<header class="course"><p>Módulo 6 · Conceptos 2/3</p>
+<h1>0002 · Nodos, aristas y z⁻¹: leer un DFG como un contrato</h1>
+<p class="meta">Win: clasificar cualquier elemento en 3 segundos, explicar qué dice y qué NO dice el DFG, y anticipar por qué el FIR admite scheduling y pipeline. ⏱ ~15–20 min.</p></header>
+<nav class="lecs"><a href="0001-fundamentos-fir.html">← 0001 FIR</a> · <a href="../reference/glosario.html">Glosario</a> · <a href="0003-scheduling-y-arquitecturas.html">0003 Scheduling →</a></nav>
+
+<h2>1 · El DFG es el contrato, no la obra</h2>
+<p>El <strong>DFG (Data Flow Graph)</strong> dice <em>qué</em> se calcula y <em>en qué orden debe</em> calcularse (dependencias de datos), pero deliberadamente <strong>no</strong> dice tres cosas: con cuántos operadores físicos, en qué ciclo exacto va cada operación, ni cómo se enrutan los operandos. Esa separación <em>qué vs. con-qué/cuándo</em> es la idea más importante del módulo: es lo que permite que el <strong>mismo DFG</strong> se implemente como forma directa (7 operadores, <a href="0005-ejercicio-2-asap-alap.html">Ej. 2</a>), como versión iterativa plegada (2 operadores + FSM, <a href="0006-ejercicio-3-version-iterativa.html">Ej. 3</a>) o como versión pipelineada (7 operadores + registros, <a href="0007-ejercicio-4-pipeline-cutset.html">Ej. 4</a>). (Parhi, cap. 1.)</p>
+<table><tr><th>Elemento</th><th>Pregunta test (3 seg)</th><th>Dibujo típico</th><th>Naturaleza</th></tr>
+<tr><td><strong>Nodo</strong> (○): ×, +</td><td>¿Transforma datos?</td><td>Círculo con símbolo</td><td>Combinacional</td></tr>
+<tr><td><strong>Arista</strong> (→): flujo + dependencia</td><td>¿Transporta y ordena?</td><td>Flecha dirigida</td><td>Combinacional (hilo)</td></tr>
+<tr><td><strong>Registro z⁻¹</strong> (▢): memoria 1 ciclo</td><td>¿Retiene un clock?</td><td>Cuadrado / marca z⁻¹</td><td>Sincrónico: rompe caminos</td></tr></table>
+<p>La notación z⁻¹ viene de la transformada Z: multiplicar por z⁻¹ equivale a retardar una muestra (X(z)·z⁻¹ ↔ x[n−1]). En hardware es un banco de flip-flops con enable implícito que captura en cada flanco.</p>
+
+<h2>2 · Mapa completo del FIR4 (7 nodos, 3 registros)</h2>
+<svg class="diag" viewBox="0 0 660 330" role="img" aria-label="DFG del FIR4: registros, productos y cadena de sumas">
+<defs><marker id="b" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#333"/></marker></defs>
+<text x="10" y="20" font-size="13" font-family="sans-serif" fill="#555">Registros ▢ — la línea de retardo expone el pasado:</text>
+<text x="10" y="52" font-size="13" font-family="sans-serif">x[n]</text>
+<rect x="55" y="32" width="56" height="36" rx="7" fill="#fff" stroke="#333"/><text x="83" y="55" text-anchor="middle" font-size="13">z⁻¹</text>
+<rect x="155" y="32" width="56" height="36" rx="7" fill="#fff" stroke="#333"/><text x="183" y="55" text-anchor="middle" font-size="13">z⁻¹</text>
+<rect x="255" y="32" width="56" height="36" rx="7" fill="#fff" stroke="#333"/><text x="283" y="55" text-anchor="middle" font-size="13">z⁻¹</text>
+<line x1="38" y1="50" x2="55" y2="50" stroke="#333" marker-end="url(#b)"/>
+<line x1="111" y1="50" x2="155" y2="50" stroke="#333" marker-end="url(#b)"/>
+<line x1="211" y1="50" x2="255" y2="50" stroke="#333" marker-end="url(#b)"/>
+<text x="30" y="86" font-size="12" font-family="sans-serif">x[n]</text>
+<text x="125" y="86" font-size="12" font-family="sans-serif">x[n−1]</text>
+<text x="225" y="86" font-size="12" font-family="sans-serif">x[n−2]</text>
+<text x="325" y="86" font-size="12" font-family="sans-serif">x[n−3]</text>
+<text x="420" y="55" font-size="12" font-family="sans-serif" fill="#555">4 taps ⇒ 3 registros</text>
+<text x="10" y="120" font-size="13" font-family="sans-serif" fill="#555">Nodos ○ + aristas → — cada tap se pesa (4 productos en paralelo):</text>
+<circle cx="60" cy="160" r="22" fill="#fff" stroke="#333"/><text x="60" y="165" text-anchor="middle" font-size="12">M₀</text>
+<circle cx="185" cy="160" r="22" fill="#fff" stroke="#333"/><text x="185" y="165" text-anchor="middle" font-size="12">M₁</text>
+<circle cx="310" cy="160" r="22" fill="#fff" stroke="#333"/><text x="310" y="165" text-anchor="middle" font-size="12">M₂</text>
+<circle cx="435" cy="160" r="22" fill="#fff" stroke="#333"/><text x="435" y="165" text-anchor="middle" font-size="12">M₃</text>
+<text x="60" y="196" text-anchor="middle" font-size="11" font-family="sans-serif">×h₀</text>
+<text x="185" y="196" text-anchor="middle" font-size="11" font-family="sans-serif">×h₁</text>
+<text x="310" y="196" text-anchor="middle" font-size="11" font-family="sans-serif">×h₂</text>
+<text x="435" y="196" text-anchor="middle" font-size="11" font-family="sans-serif">×h₃</text>
+<line x1="38" y1="86" x2="52" y2="140" stroke="#333" marker-end="url(#b)"/>
+<line x1="150" y1="86" x2="172" y2="140" stroke="#333" marker-end="url(#b)"/>
+<line x1="262" y1="86" x2="296" y2="140" stroke="#333" marker-end="url(#b)"/>
+<line x1="360" y1="86" x2="418" y2="140" stroke="#333" marker-end="url(#b)"/>
+<text x="10" y="228" font-size="13" font-family="sans-serif" fill="#555">Nodos ○ + aristas → — los productos se acumulan en cadena (3 sumas):</text>
+<circle cx="122" cy="272" r="22" fill="#fff" stroke="#0b5fff"/><text x="122" y="277" text-anchor="middle" font-size="12">A₁</text>
+<circle cx="272" cy="272" r="22" fill="#fff" stroke="#0b5fff"/><text x="272" y="277" text-anchor="middle" font-size="12">A₂</text>
+<circle cx="422" cy="272" r="22" fill="#fff" stroke="#0b5fff"/><text x="422" y="277" text-anchor="middle" font-size="12">A₃</text>
+<line x1="70" y1="181" x2="106" y2="253" stroke="#333" marker-end="url(#b)"/>
+<line x1="175" y1="181" x2="138" y2="253" stroke="#333" marker-end="url(#b)"/>
+<line x1="306" y1="182" x2="280" y2="251" stroke="#333" marker-end="url(#b)"/>
+<line x1="435" y1="182" x2="428" y2="251" stroke="#333" marker-end="url(#b)"/>
+<line x1="144" y1="272" x2="250" y2="272" stroke="#333" marker-end="url(#b)"/>
+<line x1="294" y1="272" x2="400" y2="272" stroke="#333" marker-end="url(#b)"/>
+<line x1="444" y1="272" x2="530" y2="272" stroke="#333" marker-end="url(#b)"/>
+<text x="538" y="277" font-size="13" font-family="sans-serif">y[n]</text>
+<text x="100" y="312" text-anchor="middle" font-size="11" font-family="sans-serif" fill="#555">M₀+M₁</text>
+<text x="250" y="312" text-anchor="middle" font-size="11" font-family="sans-serif" fill="#555">+M₂</text>
+<text x="400" y="312" text-anchor="middle" font-size="11" font-family="sans-serif" fill="#555">+M₃</text>
+</svg>
+<p>Es el mismo grafo de la <a href="0001-fundamentos-fir.html">lección 0001</a>, ahora leído con ojos de DFG. Leelo en tres franjas:</p>
+<p><strong>Arriba</strong>, los 3 registros z⁻¹ exponen el pasado; <strong>al medio</strong>, los 4 productos M<sub>k</sub>=x[n−k]·h<sub>k</sub> son independientes entre sí (pueden ir en paralelo); <strong>abajo</strong>, la cadena A₁→A₂→A₃ es estrictamente secuencial (cada suma necesita la anterior). Esa diferencia —paralelismo al medio, serialidad abajo— es exactamente lo que el scheduling del Ej. 2 va a medir.</p>
+
+<h2>3 · Dependencia, camino y criticidad (intuición previa al Ej. 2)</h2>
+<p>Una <strong>arista u→v</strong> significa "v no puede calcularse hasta que u esté listo". Siguiendo flechas desde las entradas hasta y[n] obtenés <strong>caminos</strong>; el más largo en operaciones (M₀→A₁→A₂→A₃, 4 nodos) anticipa la <strong>latencia mínima de 4 ciclos</strong> con latencia unitaria. Los nodos fuera de ese camino (M₂, M₃, cuyos resultados "esperan" a que la cadena los necesite) anticipan <strong>holgura</strong>. No calcules nada todavía —solo entrená el ojo: paralelo = holgura probable, cadena = criticidad probable.</p>
+
+<h2>4 · Feed-forward: la propiedad que habilita todo</h2>
+<div class="tip"><strong>Feed-forward = acíclico:</strong> no hay flecha que vuelva atrás, ningún camino "vuelve sobre sí mismo". Consecuencias encadenadas:
+<ol>
+<li>el scheduling ASAP/ALAP es simple (orden topológico directo);</li>
+<li>se puede insertar <strong>pipeline con cut-set</strong> sin cambiar la función (<a href="0007-ejercicio-4-pipeline-cutset.html">Ej. 4</a>);</li>
+<li><strong>no existe IPB</strong> —el Iteration Period Bound solo aparece con lazos de realimentación (IIR, Ej. 6, fuera de alcance).</li>
+</ol>
+Si te preguntan "¿y el IPB de este FIR?", la respuesta es el punto 3.</div>
+<p>Contraste útil para tu presentación: un IIR de 1er orden y[n] = b₀x[n]+b₁x[n−1]−a₁y[n−1] <em>sí</em> tiene una arista y[n]→(retardo)→suma que cierra un lazo. Ese lazo impone un período mínimo de reloj que ningún pipeline puede romper gratis. El FIR, al no tenerlo, es "dócil".</p>
+
+<h2>5 · Guion para exponer (60 segundos)</h2>
+<div class="card">"El DFG es el contrato del cálculo: 7 nodos —4 productos independientes arriba, 3 sumas encadenadas abajo—, aristas que fijan dependencias y 3 registros z⁻¹ que exponen el pasado. No dice con cuántos operadores lo voy a construir ni en qué ciclo va cada cosa: eso lo deciden el scheduling y la arquitectura. Y como es acíclico feed-forward, sé desde ya que puedo schedularlo con holgura y pipelinearlo sin tocar la función."</div>
+
+<h2>6 · Errores típicos</h2>
+<div class="warn"><ol>
+<li><strong>Contar los z⁻¹ como nodos de cómputo</strong> → son memoria, no operan. El FIR4 tiene 7 nodos, no 10.</li>
+<li><strong>Dibujar la cadena de sumas como árbol balanceado</strong> → la forma directa es cadena lineal A₁→A₂→A₃; el árbol es otra arquitectura.</li>
+<li><strong>Creer que el DFG fija el hardware</strong> → el mismo DFG admite 7 operadores (Ej. 2), 2 plegados (Ej. 3) o 7 + pipeline (Ej. 4).</li>
+<li><strong>Olvidar el sentido de las flechas</strong> → sin dirección no hay dependencias y el scheduling es imposible.</li>
+</ol></div>
+
+<h2>Fuente primaria</h2>
+<p>Parhi, <em>VLSI DSP Systems</em>, cap. 1 (DFG, nodos/aristas/retardos). Tu diagrama: <a href="../ej1_DFG/README.md">README Ej. 1</a>.</p>
+
+<div class="quiz"><h2>Autoevaluación · 0002</h2><p class="meta"><span id="score"></span></p>
+<div class="q"><p>1. Un círculo con × en el DFG representa…</p>
+<button data-ok="0">Una arista de flujo con retardo unitario marcado</button>
+<button data-ok="1">Un nodo de cómputo que multiplica dos entradas</button>
+<button data-ok="0">Un registro sincrónico que guarda muestras pasadas</button>
+<div class="fb">✔ Nodo = transforma. × multiplica; + suma. Lo demás es arista o registro.</div></div>
+<div class="q"><p>2. ¿Qué rompe un camino combinacional en el DFG?</p>
+<button data-ok="1">Un registro z⁻¹ que retiene un ciclo completo</button>
+<button data-ok="0">Una arista dirigida que propaga datos al instante</button>
+<button data-ok="0">Un nodo sumador que combina dos productos previos</button>
+<div class="fb">✔ Solo el z⁻¹ es memoria sincrónica; aristas y nodos son combinacionales.</div></div>
+<div class="q"><p>3. ¿Por qué el FIR directo es feed-forward?</p>
+<button data-ok="0">Porque comparte un sumador con máquina secuencial</button>
+<button data-ok="0">Porque realimenta la salida con registros adicionales</button>
+<button data-ok="1">Porque ningún camino vuelve hacia nodos ya visitados</button>
+<div class="fb">✔ Acíclico = sin lazos. Por eso el cut-set del Ej. 4 es válido y no hay IPB.</div></div>
+<div class="q"><p>4. El DFG del FIR4, ¿cuántos nodos tiene?</p>
+<button data-ok="0">Tres nodos: solo retardos en cascada simple</button>
+<button data-ok="1">Siete nodos: cuatro productos y tres sumas</button>
+<button data-ok="0">Cuatro nodos: solo productos en paralelo total</button>
+<div class="fb">✔ M₀…M₃ (4×) + A₁,A₂,A₃ (3+) = 7 nodos. Los z⁻¹ no son nodos de cómputo.</div></div>
+</div>
+<p class="meta">¿Dudas? Preguntame: "¿el z⁻¹ es nodo o no?" o "¿qué parte del DFG anticipa holgura?".</p>
+<footer><a href="0001-fundamentos-fir.html">← 0001</a> · <a href="0003-scheduling-y-arquitecturas.html">0003 →</a></footer>
+</div><script src="../assets/quiz.js"></script></body></html>

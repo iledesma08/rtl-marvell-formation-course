@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>0007 · Ejercicio 4 — Pipeline con cut-set</title>
+<link rel="stylesheet" href="../assets/style.css"></head>
+<body><div class="wrap">
+<header class="course"><p>Módulo 6 · Ejercicio 4/5 · Pipelining</p>
+<h1>0007 · Ejercicio 4: cut-set feed-forward, 2 etapas, Tcrit 5→4</h1>
+<p class="meta">Win: definir cut-set válido, trazar tus 2 cortes, calcular el Tcrit por etapa y defender el +25% de fmax con su peaje. Base: <a href="../ej4_Cut-Set/README.md">tu README Ej. 4</a>. ⏱ ~15–20 min.</p></header>
+<nav class="lecs"><a href="0006-ejercicio-3-version-iterativa.html">← 0006 Ej3</a> · <a href="../reference/glosario.html">Glosario</a> · <a href="0008-ejercicio-5-comparacion-ppa.html">0008 Ej5 →</a></nav>
+
+<h2>1 · Definición operativa (decila palabra por palabra)</h2>
+<p>Un <strong>feed-forward cut-set</strong> es un conjunto de aristas que, al eliminarlas, parte el DFG en dos mitades disjuntas con <strong>todas las aristas en el mismo sentido</strong> (ninguna vuelve atrás), cumpliendo <strong>cruce único</strong>: cada camino entrada→salida atraviesa el corte exactamente una vez. Regla de aplicación: <strong>un registro por arista del corte = +1 etapa de pipeline</strong>, y la función no cambia (la salida solo se retrasa en ciclos fijos). Si el corte atravesara un lazo o un camino lo cruzara dos veces, unos datos se retrasarían más que otros y la función se rompería —por eso el FIR acíclico del Ej. 1 es el candidato ideal.</p>
+
+<h2>2 · Tus 2 cortes (dónde y por qué ahí)</h2>
+<div class="card"><strong>Corte 1 — lado de los datos:</strong> a la salida del 2.º z⁻¹, antes de que se bifurque hacia M₂ y hacia el 3.er z⁻¹. Como ambas ramas nacen del mismo nodo fuente, se implementa con <strong>un único registro compartido</strong> (detalle elegante: no pagás dos registros). Retrasa la disponibilidad de x[n−2]/x[n−3] y por tanto de M₂/M₃.<br><strong>Corte 2 — lado de las sumas:</strong> en la arista A₁→A₂. Retrasa la cadena de acumulación.<br>Juntos, los dos cortes dibujan una frontera coherente que divide el circuito en "etapa temprana" y "etapa tardía".</div>
+
+<h2>3 · Cálculo del camino crítico (el corazón del ejercicio)</h2>
+<p>Tiempos dados: Tm = 2 u.t. (multiplicador), Ta = 1 u.t. (sumador). Primero el baseline:</p>
+<figure><img src="../ej4_Cut-Set/Sin_Pipe.jpeg" alt="FIR sin pipeline"><figcaption>Sin pipeline: el camino M→A₁→A₂→A₃ vale Tm+3Ta = 5 u.t. ⇒ fmax = 1/5.</figcaption></figure>
+<div class="formula">Tcrit(sin) = Tm + 3·Ta = 2 + 3 = <strong>5 u.t.</strong> ⇒ fmax = 1/5</div>
+<p>Tras insertar los 2 registros, ningún camino combinacional cruza la frontera: el Tcrit global es el <strong>máximo entre etapas</strong>:</p>
+<figure><img src="../ej4_Cut-Set/Con_Pipe.jpeg" alt="FIR con pipeline"><figcaption>Con pipeline: etapa 1 (M₀/M₁+A₁) = 3 u.t.; etapa 2 (M₂+A₂+A₃) = 4 u.t.</figcaption></figure>
+<div class="formula">Etapa 1: Tm+Ta = 3 · Etapa 2: Tm+2Ta = 4 ⇒ Tcrit = max(3,4) = <strong>4 u.t.</strong> ⇒ fmax = <strong>1/4</strong> (+25%)</div>
+<table><tr><th>Versión</th><th>Camino crítico</th><th>fmax</th><th>Peaje</th></tr>
+<tr><td>Sin pipeline</td><td>Tm+3Ta = 5</td><td>1/5</td><td>—</td></tr>
+<tr><td>Con pipeline (2 etapas)</td><td>Tm+2Ta = 4</td><td>1/4</td><td>+2 ciclos latencia, +2 registros</td></tr></table>
+
+<h2>4 · Llenado del pipeline: transitorio vs régimen</h2>
+<p>Hay una frase en tu tabla del <a href="0008-ejercicio-5-comparacion-ppa.html">Ej. 5</a> que el público va a cuestionar: "1 muestra por ciclo <em>en régimen (pipeline lleno)</em>". ¿Qué significa "lleno" y por qué el aclaración importa? Significa esto: con el pipeline recién arrancado (vacío), la etapa 2 no tiene nada que hacer —está en <em>burbuja</em>— hasta que la primera muestra termina la etapa 1 y cruza los registros de corte. Recién entonces las dos etapas trabajan <em>a la vez sobre muestras distintas</em>: la etapa 1 con x[n+1] mientras la etapa 2 cierra y[n]. Ese solapamiento es el pipeline "lleno".</p>
+<p>Trazalo ciclo a ciclo para tus 2 etapas (E1 = etapa temprana, E2 = etapa tardía):</p>
+<table><tr><th>Ciclo</th><th>E1 procesa</th><th>E2 procesa</th><th>Sale y?</th></tr>
+<tr><td>1</td><td>x[0]</td><td>— (vacía)</td><td>no</td></tr>
+<tr><td>2</td><td>x[1]</td><td>x[0]</td><td>no (primera vez lleno)</td></tr>
+<tr><td>3</td><td>x[2]</td><td>x[1]</td><td><strong>sí: y[0]</strong></td></tr>
+<tr><td>4…</td><td>x[n+1]</td><td>x[n]</td><td><strong>sí: uno por ciclo</strong></td></tr></table>
+<p>Tres lecturas para tu presentación:</p>
+<ol>
+<li><strong>El llenado es el peaje pagado una sola vez:</strong> la primera salida tarda los 2 ciclos extra (el pipeline "se llena"), pero a partir de ahí sale una muestra por ciclo <em>para siempre, mientras haya datos entrando</em>. Por eso el throughput de régimen es 1/ciclo aunque la latencia subiera 2.</li>
+<li><strong>El "1 por ciclo" exige alimentación continua:</strong> si la entrada llega a rachas con huecos, el pipeline se vacía y hay que volver a llenarlo —cada hueco cuesta el transitorio de nuevo. El throughput real de una fuente esporádica es menor que el de régimen. (Tu testbench del Ej. 3 estresa exactamente esto con la fase de gaps aleatorios.)</li>
+<li><strong>Lleno ≠ gratis:</strong> en régimen hay 2 muestras "en vuelo" dentro del circuito a la vez —esa es la concurrencia que compraste con los 2 registros. Sin ellos, solo habría una.</li>
+</ol>
+<div class="tip"><strong>Frase para decir en voz alta:</strong> "El pipeline es una inversión: pago el llenado una vez —2 ciclos hasta la primera salida— y cobro una muestra por ciclo de ahí en más, a un reloj 25% más rápido. Por eso mi tabla del Ej. 5 dice '1 muestra por ciclo <em>lleno</em>': el asterisco es el transitorio."</div>
+
+<h2>5 · Lectura crítica (qué decir si te presionan)</h2>
+<ol>
+<li>El pipeline <strong>no aceleró ninguna muestra</strong>: cada y[n] tarda 2 ciclos más en salir; lo que aceleró es el <strong>reloj</strong>, y con él el throughput en régimen (1 muestra/ciclo lleno a fmax mayor).</li>
+<li>La etapa 2 manda (4 vs 3): el diseño quedó <strong>desbalanceado</strong>; un tercer corte que separe M₂ de A₂+A₃ balancearía a ~3 a cambio de más registros —mencionalo como trabajo futuro, muestra criterio.</li>
+<li>Un <strong>corte transversal</strong> (todos los × de un lado, todos los + del otro) bajaría el Tcrit a max(Tm, 3Ta) = 3 con más registros: mismo teorema, otro compromiso.</li>
+</ol>
+<div class="tip"><strong>Línea de cierre:</strong> "El cut-set feed-forward me dejó partir el camino de 5 en etapas de 3 y 4 sin tocar la función; el reloj ahora lo fija la etapa 2 en 4, un 25% más rápido, pagando 2 ciclos de latencia y 2 registros. Esa es toda la idea del pipelining."</div>
+
+<h2>Fuente primaria</h2>
+<p>Tu cálculo y diagramas: <a href="../ej4_Cut-Set/README.md">ej4_Cut-Set/README.md</a>. Teoría: Parhi, pipelining de DFG feed-forward y retiming.</p>
+
+<div class="quiz"><h2>Autoevaluación · Ej. 4</h2><p class="meta"><span id="score"></span></p>
+<div class="q"><p>1. Un cut-set feed-forward válido requiere…</p>
+<button data-ok="0">Cortar lazos recursivos en ambos sentidos opuestos</button>
+<button data-ok="1">Partir el grafo con flujo en un solo sentido</button>
+<button data-ok="0">Duplicar operadores críticos en cada partición nueva</button>
+<div class="fb">✔ Mismo sentido + cruce único por camino ⇒ la función no cambia.</div></div>
+<div class="q"><p>2. Tcrit sin pipeline con Tm=2 y Ta=1…</p>
+<button data-ok="1">Cinco, por un producto más tres sumas críticas</button>
+<button data-ok="0">Cuatro, por un producto más dos sumas críticas</button>
+<button data-ok="0">Tres, por un producto más una suma crítica</button>
+<div class="fb">✔ M + A₁+A₂+A₃ = 2+3 = 5 u.t. ⇒ fmax 1/5.</div></div>
+<div class="q"><p>3. Con tus 2 cortes, el Tcrit nuevo es…</p>
+<button data-ok="0">Tres, con ambas etapas perfectamente balanceadas siempre</button>
+<button data-ok="0">Cinco, porque el pipeline no altera el camino crítico</button>
+<button data-ok="1">Cuatro, con la segunda etapa como etapa dominante</button>
+<div class="fb">✔ max(3, 4) = 4: etapa 2 (M₂+A₂+A₃) manda. fmax 1/4, +25%.</div></div>
+<div class="q"><p>4. ¿Qué peaje paga este pipeline?</p>
+<button data-ok="1">Dos ciclos extra de latencia y dos registros nuevos</button>
+<button data-ok="0">Mitad de throughput y doble cantidad de coeficientes</button>
+<button data-ok="0">Menor fmax y mayor camino combinacional crítico</button>
+<div class="fb">✔ Gana fmax/throughput; paga latencia en ciclos y área de registros.</div></div>
+</div>
+<p class="meta">¿Dudas? Preguntame: "¿por qué el corte 1 usa un solo registro?" o "¿cómo balancearías las etapas?".</p>
+<footer><a href="0006-ejercicio-3-version-iterativa.html">← 0006</a> · <a href="0008-ejercicio-5-comparacion-ppa.html">0008 Ej5 →</a></footer>
+</div><script src="../assets/quiz.js"></script></body></html>

@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>0003 · Scheduling y arquitecturas: el panorama</title>
+<link rel="stylesheet" href="../assets/style.css"></head>
+<body><div class="wrap">
+<header class="course"><p>Módulo 6 · Conceptos 3/3</p>
+<h1>0003 · ASAP, ALAP, folding, pipeline y PPA: el mapa antes de los ejercicios</h1>
+<p class="meta">Win: no confundir nunca latencia / II / throughput / fmax, explicar ASAP/ALAP/movilidad con un ejemplo, y ubicar folding vs pipeline vs PPA en una frase cada uno. ⏱ ~15–20 min.</p></header>
+<nav class="lecs"><a href="0002-anatomia-dfg.html">← 0002 DFG</a> · <a href="../reference/glosario.html">Glosario</a> · <a href="0004-ejercicio-1-dfg.html">0004 Ej1 →</a></nav>
+
+<h2>1 · Cuatro métricas, cuatro preguntas distintas</h2>
+<p>La mitad de las preguntas del público nacen de mezclar estas cuatro. La analogía que las ordena es una <strong>fábrica</strong>: la latencia es lo que tarda <em>un auto</em> en cruzar la fábrica; el II es cada cuánto <em>entra un auto nuevo</em>; el throughput es cuántos autos <em>salen por hora</em>; la fmax es lo rápido que puede moverse <em>la cinta transportadora</em>. Son cuatro preguntas sobre el mismo edificio —y cada técnica del módulo mueve algunas y empeora otras.</p>
+<table><tr><th>Métrica</th><th>Pregunta que responde</th><th>Fórmula</th><th>La fija…</th></tr>
+<tr><td><strong>Latencia</strong> (ciclos)</td><td>¿Cuánto tarda <em>mi</em> muestra desde in hasta out?</td><td>ciclos in→out</td><td>profundidad de dependencias + registros que atraviesa</td></tr>
+<tr><td><strong>II</strong> (ciclos/muestra)</td><td>¿Cada cuánto puedo aceptar muestra <em>nueva</em> en régimen?</td><td>ciclos entre inicios consecutivos</td><td>el recurso cuello de botella / cuánto reuso hay</td></tr>
+<tr><td><strong>Throughput</strong> (muestras/s)</td><td>¿Cuántas muestras por segundo salen?</td><td>f<sub>clk</sub> / II</td><td>el II y la frecuencia real del reloj</td></tr>
+<tr><td><strong>fmax</strong> (Hz)</td><td>¿Qué tan rápido <em>puede</em> ir el clock sin romper tiempos?</td><td>1 / Tcrit</td><td>el camino combinacional más largo (Tcrit)</td></tr></table>
+
+<h3>1.1 · Cada métrica con su número de tus ejercicios</h3>
+<ul>
+<li><strong>Latencia — la historia de UNA muestra.</strong> Ej. 2: con recursos ilimitados, y[n] está lista 4 ciclos después de tener las entradas (M→A₁→A₂→A₃). Ej. 3: la muestra tarda 6 ciclos desde que <code>in_valid</code> se acepta hasta que <code>out_valid</code> sale (1 de captura + 5 de cómputo). Si tu aplicación es un lazo de control que reacciona a <em>esta</em> muestra, la latencia es tu métrica.</li>
+<li><strong>II — el ritmo de la fábrica.</strong> Ej. 3: aunque cada muestra tarda 6 ciclos en salir, puedo aceptar una <em>nueva</em> cada 5 ciclos (gracias al back-to-back S_A3→S_M0). II = 5, no 6. Latencia e II difieren siempre que haya reuso o pipeline: la primera mira una muestra, el segundo mira el régimen.</li>
+<li><strong>Throughput — lo que sale por segundo.</strong> Ej. 3: Th = f<sub>clk</sub>/II = 100 MHz / 5 = <strong>20 Mmuestras/s</strong>. Fijate qué <em>no</em> aparece en la fórmula: la latencia. Una arquitectura puede tener latencia enorme y throughput excelente (un pipeline profundo) o latencia mínima y throughput pobre (un folding muy serializado).</li>
+<li><strong>fmax — el techo que pone la física.</strong> Ej. 4: el camino M→A₁→A₂→A₃ tarda Tm + 3Ta = 5 u.t.; el período de reloj no puede ser menor que eso, así que fmax = 1/5. No es una decisión: es el límite que impone tu camino combinacional más largo. Todo lo que achique el Tcrit sube este techo.</li>
+</ul>
+
+<h3>1.2 · Por qué el pipeline sube fmax y throughput pero NO baja la latencia</h3>
+<p>Sigamos tus números del <a href="0007-ejercicio-4-pipeline-cutset.html">Ej. 4</a>, paso a paso:</p>
+<ol>
+<li><strong>Punto de partida:</strong> sin pipeline, la señal atraviesa M + A₁ + A₂ + A₃ <em>de un tirón</em> en 5 u.t. El reloj debe esperar esas 5 u.t. ⇒ fmax = 1/5. La muestra sale "enseguida" en ciclos (0 registros extra), pero el reloj es lento.</li>
+<li><strong>Qué hace el pipeline:</strong> inserta 2 registros que <em>parten</em> ese camino en dos etapas (3 u.t. y 4 u.t.). Ahora ningún camino combinacional mide 5: el más largo mide 4.</li>
+<li><strong>Por qué sube fmax:</strong> el reloj solo debe esperar a la etapa más lenta ⇒ período mínimo 4 ⇒ fmax = 1/4, un 25% más. El techo subió porque el camino más largo se acortó. Hasta acá, todo ganancia.</li>
+<li><strong>Por qué sube el throughput:</strong> el filtro entrega 1 muestra por ciclo cuando el pipeline está lleno, así que throughput = f<sub>clk</sub> × 1. Reloj 25% más rápido ⇒ 25% más muestras/s. El pipeline no inventó muestras: dejó girar la cinta más rápido.</li>
+<li><strong>Por qué la latencia en ciclos SUBE:</strong> cada muestra ahora debe cruzar <em>2 registros extra</em> antes de salir: su viaje dura 2 ciclos más que antes. Le agregaste 2 "peajes" al camino de <em>esa</em> muestra. En la analogía: sumaste estaciones a la línea —cada auto pasa <em>más tiempo adentro</em>, aunque salgan autos <em>más seguido</em>.</li>
+</ol>
+<div class="card"><strong>Resumen para decir en voz alta:</strong> "El pipeline parte el camino crítico (5→4), así que el reloj puede ir más rápido (fmax 1/5→1/4) y, como sale una muestra por ciclo lleno, el throughput sube en la misma proporción. Pero cada muestra cruza 2 registros nuevos, así que su latencia en ciclos sube 2. Acelera la fábrica, no al auto."</div>
+<div class="warn"><strong>Error clásico (decilo en tu presentación antes de que te lo pregunten):</strong> "el pipeline baja la latencia". No: mirá la tabla —es la única métrica que empeora en ciclos. Quien promete "todo mejor" no entendió el trade-off.<br><strong>Matiz honesto por si te presionan:</strong> en <em>segundos</em> la latencia es ciclos/f<sub>clk</sub>, y como f sube mientras los ciclos suben, en tiempo absoluto puede quedar parecida. Pero en ciclos —que es lo que cuenta para tu FSM, tu testbench y tu comparación PPA— siempre sube.</div>
+
+<h2>2 · Scheduling con recursos ilimitados: ASAP / ALAP / movilidad</h2>
+<p>Hipótesis de trabajo del Ej. 2: cada operador (× o +) tarda <strong>1 ciclo</strong> y hay <strong>tantos operadores como quieras</strong> (si 4 productos están listos, van los 4 juntos). Bajo estas hipótesis:</p>
+<p><strong>ASAP</strong> recorre el grafo <em>hacia adelante</em> y dispara cada nodo apenas todas sus entradas están listas. Responde "¿lo más temprano que puedo?". Su resultado es la <strong>latencia mínima</strong> del cálculo. En el FIR4: ciclo 1 los 4 productos, luego A₁, A₂, A₃ ⇒ <strong>4 ciclos</strong>.</p>
+<p><strong>ALAP</strong> fija esa latencia L=4 y recorre <em>hacia atrás</em> desde y[n], colocando cada nodo lo más tarde posible sin demorar la salida. Responde "¿lo más tarde que puedo sin romper nada?". En el FIR4: A₃ en 4; A₂+M₃ en 3; A₁+M₂ en 2; M₀+M₁ en 1.</p>
+<div class="formula">Movilidad(v) = ciclo<sub>ALAP</sub>(v) − ciclo<sub>ASAP</sub>(v)</div>
+<p>Lectura: <strong>0 ⇒ camino crítico</strong> (demorarlo demora y[n]); <strong>&gt;0 ⇒ holgura</strong> explotable para compartir hardware (dos operaciones cuyas ventanas no se solapan pueden usar el mismo operador físico). En el FIR4: M₂ tiene 1, M₃ tiene 2, el resto 0. Esa frase —"M₂ y M₃ tienen holgura 1 y 2"— es el puente directo al folding del Ej. 3.</p>
+
+<h2>3 · Folding: el mismo cálculo, menos operadores, más ciclos</h2>
+<p><strong>Idea:</strong> asignar varios nodos del DFG a un <em>mismo operador físico</em> que los ejecuta uno por ciclo. <strong>Objetivo:</strong> ↓ área y potencia. <strong>Peaje:</strong> ↑ ciclos por muestra (II↑), más muxes de enrutado, registros de parciales (P, acc) y una FSM que secuencia todo. El Ej. 3 lo lleva al extremo: 7 nodos con 1× y 1+ en 5 ciclos óptimos. La palabra clave para defenderlo es <strong>"cota inferior"</strong>: demostrás que 5 es lo mínimo posible con ese hardware y que tu scheduling lo alcanza.</p>
+<p>El ejemplo que lo vende solo, tomado del <a href="0006-ejercicio-3-version-iterativa.html">Ej. 3</a> (throughput relativo a la forma directa):</p>
+<table><tr><th>Implementación</th><th>Recursos</th><th>Ciclos/muestra</th><th>Throughput relativo</th></tr>
+<tr><td>Forma directa (ASAP)</td><td>4 × + 3 +</td><td>4</td><td>1.00</td></tr>
+<tr><td><strong>Iterativa plegada (la tuya)</strong></td><td><strong>1 × + 1 +</strong></td><td><strong>5</strong></td><td><strong>0.80</strong></td></tr>
+<tr><td>Secuencial naive (un nodo por vez)</td><td>1 × + 1 +</td><td>7</td><td>0.57</td></tr></table>
+<p>Leela así: con el <em>mismo hardware mínimo</em> (1×, 1+), el ingenuo tarda 7 ciclos y el tuyo 5 —esos 2 ciclos de diferencia son el solapado ×/+ que la holgura de ALAP permitió—. Y contra la directa: pasás de 7 operadores a 2 (menos de un tercio del área) perdiendo solo un 20% de throughput. Ese es el negocio del folding en una tabla.</p>
+
+<h2>4 · Pipeline con cut-set: el mismo hardware, más frecuencia</h2>
+<p><strong>Idea:</strong> partir el DFG con un <strong>corte feed-forward</strong> (todas las aristas en el mismo sentido, cruce único por camino) e insertar un registro por arista cortada: +1 etapa de pipeline sin cambiar la función. <strong>Objetivo:</strong> ↑ fmax y throughput (el Tcrit pasa a ser el máximo <em>entre etapas</em>, no la suma total). <strong>Peaje:</strong> ↑ latencia en ciclos y área de registros. El Ej. 4: Tcrit 5→4 u.t., fmax 1/5→1/4 (+25%). La frase clave: <strong>"el pipeline no acelera una muestra, acelera la fábrica"</strong>.</p>
+
+<h2>5 · PPA: la lectura conjunta</h2>
+<p><strong>PPA = Power, Performance, Area miradas juntas.</strong> Folding gana área/potencia y paga throughput; pipeline gana throughput y paga área/potencia. No hay campeón absoluto: hay <em>óptimos según objetivo</em> (sensor a batería ⇒ folded; radio a alta tasa ⇒ pipeline). Y no son excluyentes: se pueden combinar. Esa es la conclusión del <a href="0008-ejercicio-5-comparacion-ppa.html">Ej. 5</a> y tu frase de cierre.</p>
+
+<h2>6 · Guion para exponer (45 segundos)</h2>
+<div class="card">"Antes de los ejercicios, cuatro métricas: latencia —mi muestra—, II —el ritmo—, throughput —f sobre II— y fmax —uno sobre el camino crítico—. Con recursos ilimitados, ASAP me da la latencia mínima y ALAP la holgura de cada nodo; la movilidad cero marca el camino crítico y la positiva marca qué hardware puedo compartir. Con eso en mano hay dos caminos opuestos: folding —menos operadores, más ciclos— y pipeline —mismos operadores, más frecuencia—. PPA es leer los tres costos juntos."</div>
+
+<h2>Fuente primaria</h2>
+<p>Parhi, caps. de scheduling (ASAP/ALAP), folding y pipelining/retiming. Índice de tu trabajo: <a href="../enunciados.md">enunciados 1–5</a>.</p>
+
+<div class="quiz"><h2>Autoevaluación · 0003</h2><p class="meta"><span id="score"></span></p>
+<div class="q"><p>1. Throughput en régimen con II=5 y f=100 MHz…</p>
+<button data-ok="0">Cien millones dividido dos muestras por segundo</button>
+<button data-ok="1">Cien millones dividido cinco muestras por segundo</button>
+<button data-ok="0">Cien millones dividido tres muestras por segundo</button>
+<div class="fb">✔ Th = f/II = 20 Mmuestras/s. II manda, no la latencia.</div></div>
+<div class="q"><p>2. Movilidad cero en un nodo significa…</p>
+<button data-ok="1">Nodo crítico que no admite ningún retraso posible</button>
+<button data-ok="0">Nodo holgado que permite varios retrasos posibles</button>
+<button data-ok="0">Nodo ocioso que nunca integra la salida final</button>
+<div class="fb">✔ Movilidad 0 = camino crítico: demorarlo demora y[n].</div></div>
+<div class="q"><p>3. El folding con 1× y 1+ busca…</p>
+<button data-ok="0">Acelerar el reloj partiendo el camino combinacional</button>
+<button data-ok="0">Aumentar registros para elevar la frecuencia máxima</button>
+<button data-ok="1">Reducir área reutilizando operadores varios ciclos</button>
+<div class="fb">✔ Folding = menos operadores, más ciclos. Pipeline es lo opuesto.</div></div>
+<div class="q"><p>4. Un cut-set feed-forward válido exige…</p>
+<button data-ok="1">Partir el grafo con cruces en un solo sentido</button>
+<button data-ok="0">Cortar lazos recursivos con doble sentido inverso</button>
+<button data-ok="0">Duplicar nodos críticos en ambas particiones nuevas</button>
+<div class="fb">✔ Feed-forward + cruce único por camino: así el pipeline no cambia la función.</div></div>
+</div>
+<p class="meta">¿Dudas? Preguntame: "¿latencia vs II con un ejemplo?" o "¿cuándo conviene cada técnica?".</p>
+<footer><a href="0002-anatomia-dfg.html">← 0002</a> · <a href="0004-ejercicio-1-dfg.html">0004 Ej1 →</a></footer>
+</div><script src="../assets/quiz.js"></script></body></html>

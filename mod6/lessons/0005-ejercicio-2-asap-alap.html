@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>0005 · Ejercicio 2 — ASAP y ALAP</title>
+<link rel="stylesheet" href="../assets/style.css"></head>
+<body><div class="wrap">
+<header class="course"><p>Módulo 6 · Ejercicio 2/5 · Scheduling</p>
+<h1>0005 · Ejercicio 2: ASAP, ALAP y movilidad, ciclo por ciclo</h1>
+<p class="meta">Win: recorrer el grafo hacia adelante y hacia atrás en pizarra, calcular la movilidad de los 7 nodos y señalar el camino crítico. Base: <a href="../ej2_ASAP-ALAP/README.md">tu README Ej. 2</a>. ⏱ ~15–20 min.</p></header>
+<nav class="lecs"><a href="0004-ejercicio-1-dfg.html">← 0004 Ej1</a> · <a href="../reference/glosario.html">Glosario</a> · <a href="0006-ejercicio-3-version-iterativa.html">0006 Ej3 →</a></nav>
+
+<h2>1 · Condiciones del ejercicio (decirlas primero)</h2>
+<p>Dos hipótesis que simplifican todo:</p>
+<ol>
+<li><strong>latencia unitaria</strong> —cada × y cada + tarda exactamente 1 ciclo—;</li>
+<li><strong>recursos ilimitados</strong> —si K operaciones están listas en el mismo ciclo, van las K en paralelo—.</li>
+</ol>
+<p>Sin la hipótesis 2, el scheduling dependería del hardware disponible; con ella, el resultado mide solo las <strong>dependencias del algoritmo</strong>. El puente al Ej. 3 es justamente levantar la hipótesis 2 (pasar a 1× y 1+) y ver cuánto cuesta.</p>
+
+<h2>2 · ASAP hacia adelante (lo más temprano posible)</h2>
+<p>Regla: recorro el DFG desde las entradas y <strong>disparo cada nodo apenas todas sus entradas están listas</strong>. Con las muestras x[n−k] disponibles al inicio:</p>
+<div class="card"><strong>Ciclo 1:</strong> M₀, M₁, M₂, M₃ en paralelo (sus entradas —tap y coeficiente— ya están).<br><strong>Ciclo 2:</strong> A₁ = M₀+M₁ (sus dos entradas acaban de llegar).<br><strong>Ciclo 3:</strong> A₂ = A₁+M₂ (A₁ del ciclo 2, M₂ esperando desde el 1).<br><strong>Ciclo 4:</strong> A₃ = A₂+M₃ = y[n].<br><strong>Latencia mínima: 4 ciclos.</strong> El pico de recursos es 4 multiplicadores simultáneos —la "firma" de ASAP: máxima velocidad, máximo paralelismo inicial.</div>
+
+<h2>3 · ALAP hacia atrás (lo más tarde posible)</h2>
+<p>Pensalo como un estudiante vago pero responsable: el trabajo <em>debe</em> entregarse en la fecha L (la salida no se puede demorar), así que cada tarea se empieza <strong>en el último momento que todavía permite llegar a tiempo</strong>. ASAP era el ansioso que hace todo ya; ALAP es el que pregunta "¿hasta cuándo lo puedo postergar sin que se caiga nada?".</p>
+<p>La regla, dicha sin vueltas: <strong>un nodo va en el ciclo anterior al más temprano de sus sucesores</strong>. Si tu resultado lo necesita alguien en el ciclo S, vos tenés que estar listo en el ciclo S−1 (cada operador tarda 1 ciclo). Y el punto de partida: <strong>L = 4</strong>, la latencia mínima que ya calculó ASAP —ALAP nunca inventa ese número, lo hereda.</p>
+<p>Apliquemos la regla nodo por nodo, desde la salida hacia atrás. En cada paso preguntamos "¿quién necesita este resultado, y en qué ciclo?":</p>
+<ol>
+<li><strong>A₃ → ciclo 4.</strong> No tiene sucesores: su "fecha de entrega" es L = 4. La salida <em>debe</em> estar lista acá, sin discusión.</li>
+<li><strong>¿Quién necesita a A₃? Nadie (es la salida). ¿Y quiénes alimentan a A₃? A₂ y M₃.</strong> A₃ está en el 4, así que sus entradas tienen que estar listas en el 3. Entonces <strong>A₂ → ciclo 3</strong> y <strong>M₃ → ciclo 3</strong>. Fijate en M₃: en ASAP iba en el 1 porque <em>podía</em>; acá va en el 3 porque <em>le alcanza</em> —su único sucesor (A₃) recién lo necesita en el 4. Esa diferencia (1 vs 3) es exactamente su holgura.</li>
+<li><strong>¿Quiénes alimentan a A₂? A₁ y M₂.</strong> A₂ está en el 3, así que sus entradas van en el 2: <strong>A₁ → ciclo 2</strong>, <strong>M₂ → ciclo 2</strong>. M₂ también <em>podía</em> ir en el 1, pero su sucesor (A₂) recién lo necesita en el 3, así que con el 2 le sobra.</li>
+<li><strong>¿Quiénes alimentan a A₁? M₀ y M₁.</strong> A₁ está en el 2, así que van en el 1: <strong>M₀, M₁ → ciclo 1</strong>. Estos dos <em>no</em> se pudieron mover: A₁ los necesita sí o sí en el 2 (A₁ a su vez es necesitada en el 3 por A₂, necesitada en el 4 por A₃). Sin margen en ningún eslabón ⇒ movilidad cero.</li>
+</ol>
+<div class="card"><strong>Resultado:</strong> los multiplicadores quedan <strong>escalonados 1, 1, 2, 3</strong> en vez de todos en 1. Leelo así: M₀ y M₁ están <em>clavados</em> en el 1 (si se corren, todo se atrasa); M₂ puede "flotar" entre el 1 y el 2; M₃ puede flotar entre el 1 y el 3. Ese escalonado <em>es</em> la holgura hecha visible: cada nodo quedó pegado a su fecha límite en vez de amontonado al inicio.</div>
+<figure><img src="../ej2_ASAP-ALAP/tablas_v2.jpeg" alt="Tablas ASAP y ALAP"><figcaption>Tus tablas: ASAP (izq., trabajo concentrado al inicio) vs ALAP (der., trabajo estirado). Leelas fila por fila al exponer.</figcaption></figure>
+
+<h2>4 · Tabla de movilidad (el entregable que hay que memorizar)</h2>
+<table><tr><th>Op</th><th>Tipo</th><th>ASAP</th><th>ALAP</th><th>Movilidad</th><th>Lectura</th></tr>
+<tr><td>M₀, M₁</td><td>×</td><td>1</td><td>1</td><td><strong>0</strong></td><td>Críticos</td></tr>
+<tr><td>M₂</td><td>×</td><td>1</td><td>2</td><td><strong>1</strong></td><td>Puede esperar 1 ciclo</td></tr>
+<tr><td>M₃</td><td>×</td><td>1</td><td>3</td><td><strong>2</strong></td><td>Puede esperar 2 ciclos</td></tr>
+<tr><td>A₁</td><td>+</td><td>2</td><td>2</td><td><strong>0</strong></td><td>Crítica</td></tr>
+<tr><td>A₂</td><td>+</td><td>3</td><td>3</td><td><strong>0</strong></td><td>Crítica</td></tr>
+<tr><td>A₃</td><td>+</td><td>4</td><td>4</td><td><strong>0</strong></td><td>Crítica</td></tr></table>
+<p><strong>Camino crítico:</strong> M₀ (o M₁) → A₁ → A₂ → A₃, todos movilidad 0. Cualquier demora de un ciclo en cualquiera de ellos retrasa y[n] un ciclo completo. <strong>Utilidad:</strong> M₂ y M₃, con holgura 1 y 2, pueden postergarse o escalonarse sin tocar la latencia —y dos operaciones cuyas ventanas no se solapan pueden <strong>compartir el mismo operador físico</strong>. Esa última frase es el teorema informal que justifica el Ej. 3.</p>
+
+<h2>5 · Guion para exponer (90 segundos)</h2>
+<div class="card">"Con recursos ilimitados y un ciclo por operador, ASAP dispara todo lo listo: los 4 productos en el ciclo 1 y las 3 sumas encadenadas —latencia mínima 4. ALAP fija ese 4 y va hacia atrás, retrasando todo lo posible: los productos quedan escalonados 1,1,2,3. La diferencia es la movilidad: M₂ puede esperar 1, M₃ puede esperar 2, el resto nada —ese es mi camino crítico M₀→A₁→A₂→A₃. Y esa holgura de M₂ y M₃ es la que voy a explotar en el Ejercicio 3 para usar un solo multiplicador."</div>
+
+<h2>6 · Errores típicos</h2>
+<div class="warn"><ol>
+<li><strong>Inventar L en ALAP</strong> → L siempre viene de ASAP.</li>
+<li><strong>Poner M₃ en ciclo 1 en ALAP "porque está listo"</strong> → ALAP pregunta lo más <em>tarde</em>, no lo más temprano.</li>
+<li><strong>Decir que la movilidad cambia la latencia</strong> → mover un nodo dentro de su ventana NO cambia la latencia; sacarlo de la ventana sí.</li>
+<li><strong>Confundir pico de recursos con camino crítico</strong> → el pico (4× en ciclo 1) habla de área; el camino crítico habla de tiempo.</li>
+</ol></div>
+
+<h2>Fuente primaria</h2>
+<p>Tu resolución: <a href="../ej2_ASAP-ALAP/README.md">ej2_ASAP-ALAP/README.md</a>. Teoría: Parhi, scheduling ASAP/ALAP.</p>
+
+<div class="quiz"><h2>Autoevaluación · Ej. 2</h2><p class="meta"><span id="score"></span></p>
+<div class="q"><p>1. Con recursos ilimitados, el ASAP del FIR4 da…</p>
+<button data-ok="1">Cuatro productos juntos y tres sumas encadenadas luego</button>
+<button data-ok="0">Un producto por ciclo y una suma final única total</button>
+<button data-ok="0">Dos productos juntos y dos sumas en paralelo total</button>
+<div class="fb">✔ Ciclo 1: 4× en paralelo; 2–4: A₁,A₂,A₃. Latencia mínima 4.</div></div>
+<div class="q"><p>2. ALAP fija L=4 porque…</p>
+<button data-ok="0">Es el número de multiplicadores del filtro directo</button>
+<button data-ok="0">Es la cantidad de registros de la línea de retardo</button>
+<button data-ok="1">Es la latencia mínima que ya calculó el ASAP</button>
+<div class="fb">✔ ALAP no inventa L: hereda la latencia mínima de ASAP y va hacia atrás.</div></div>
+<div class="q"><p>3. Movilidad de M₃ y su lectura…</p>
+<button data-ok="0">Cero, entonces integra el camino crítico total</button>
+<button data-ok="1">Dos, entonces admite postergarse dos ciclos útiles</button>
+<button data-ok="0">Uno, entonces solo admite un ciclo de demora</button>
+<div class="fb">✔ M₃: ASAP 1, ALAP 3 ⇒ movilidad 2. M₂ tiene 1; el resto 0.</div></div>
+<div class="q"><p>4. El camino crítico del FIR4 es…</p>
+<button data-ok="1">M₀/M₁ hacia A₁, A₂ y A₃ con movilidad nula</button>
+<button data-ok="0">M₂ hacia M₃ y A₃ con gran holgura libre</button>
+<button data-ok="0">A₁ hacia M₂ y M₃ en paralelo desacoplado</button>
+<div class="fb">✔ Todos movilidad 0 ⇒ cualquier demora retrasa y[n]. Latencia mínima: 4 ciclos.</div></div>
+</div>
+<p class="meta">¿Dudas? Preguntame: "recorramos ALAP hacia atrás juntos" o "¿por qué M₃ puede ir en el 3?".</p>
+<footer><a href="0004-ejercicio-1-dfg.html">← 0004</a> · <a href="0006-ejercicio-3-version-iterativa.html">0006 Ej3 →</a></footer>
+</div><script src="../assets/quiz.js"></script></body></html>

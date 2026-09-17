@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Glosario — Módulo 6 (Ej. 1–5)</title>
+<link rel="stylesheet" href="../assets/style.css"></head>
+<body><div class="wrap">
+<header class="course"><p>Módulo 6 · Referencia · Ejercicios 1–5</p>
+<h1>Glosario del módulo</h1>
+<p class="meta">Lenguaje canónico: usalo en tu presentación. Si dudás un término, volvé acá.</p></header>
+<nav class="lecs"><a href="../lessons/0001-fundamentos-fir.html">0001 FIR</a> · <a href="../lessons/0002-anatomia-dfg.html">0002 DFG</a> · <a href="../lessons/0003-scheduling-y-arquitecturas.html">0003 Scheduling</a> · <a href="../lessons/0004-ejercicio-1-dfg.html">0004 Ej1</a> · <a href="../lessons/0005-ejercicio-2-asap-alap.html">0005 Ej2</a> · <a href="../lessons/0006-ejercicio-3-version-iterativa.html">0006 Ej3</a> · <a href="../lessons/0007-ejercicio-4-pipeline-cutset.html">0007 Ej4</a> · <a href="../lessons/0008-ejercicio-5-comparacion-ppa.html">0008 Ej5</a> · <a href="../lessons/0009-conclusiones-guia-presentacion.html">0009 Cierre</a></nav>
+
+<h2>Términos</h2>
+<p><strong>FIR (Finite Impulse Response)</strong>: Filtro sin realimentación cuya salida es suma ponderada de entradas presentes y pasadas.<br><em>Evitar</em>: filtro recursivo, IIR.</p>
+<p><strong>Forma directa</strong>: Mapeo uno-a-uno de la ecuación del FIR a línea de retardo, multiplicadores y cadena de sumadores.<br><em>Evitar</em>: forma transpuesta, estructura plegada.</p>
+<p><strong>Tap</strong>: Cada punto de extracción de la línea de retardo con su muestra x[n−k] y coeficiente h<sub>k</sub>.<br><em>Evitar</em>: etapa, canal.</p>
+<p><strong>DFG (Data Flow Graph)</strong>: Grafo dirigido de nodos (operaciones), aristas (datos) y registros (retardos).<br><em>Evitar</em>: esquemático, diagrama de bloques.</p>
+<p><strong>Registro z⁻¹</strong>: Memoria sincrónica que retiene un dato exactamente un ciclo de reloj.<br><em>Evitar</em>: delay combinacional, buffer.</p>
+<p><strong>Feed-forward</strong>: Grafo acíclico sin lazos de realimentación; admite pipeline libre.<br><em>Evitar</em>: recursivo, con memoria infinita.</p>
+<p><strong>ASAP</strong>: Scheduling que asigna cada nodo a su ciclo más temprano posible.<br><em>Evitar</em>: scheduling tardío, balanceo.</p>
+<p><strong>ALAP</strong>: Scheduling que asigna cada nodo a su ciclo más tardío sin demorar la salida.<br><em>Evitar</em>: scheduling temprano, ASAP.</p>
+<p><strong>Movilidad (slack)</strong>: Ciclo<sub>ALAP</sub> − Ciclo<sub>ASAP</sub>; holgura temporal de un nodo.<br><em>Evitar</em>: latencia, throughput.</p>
+<p><strong>Camino crítico</strong>: Cadena de nodos con movilidad cero que fija la latencia mínima.<br><em>Evitar</em>: camino más largo en área.</p>
+<p><strong>Latencia</strong>: Ciclos desde que entra una muestra hasta que sale su resultado.<br><em>Evitar</em>: throughput, período.</p>
+<p><strong>II (Initiation Interval)</strong>: Ciclos entre el inicio de dos muestras consecutivas en régimen.<br><em>Evitar</em>: latencia, retardo.</p>
+<p><strong>Throughput</strong>: Muestras por segundo, igual a f<sub>clk</sub>/II en régimen permanente.<br><em>Evitar</em>: latencia, frecuencia.</p>
+<p><strong>Folding</strong>: Reutilizar un operador físico en varios ciclos vía muxes, registros y FSM.<br><em>Evitar</em>: pipeline, paralelismo.</p>
+<p><strong>Cut-set feed-forward</strong>: Conjunto de aristas que parte el DFG en dos con un solo sentido de cruce.<br><em>Evitar</em>: corte con realimentación.</p>
+<p><strong>PPA</strong>: Tríada Power, Performance, Area para comparar arquitecturas.<br><em>Evitar</em>: solo velocidad, solo área.</p>
+<footer>Fuente: lecciones 0001–0009 · <a href="../RESOURCES.md">Recursos</a> · <a href="../MISSION.md">Misión</a></footer>
+</div></body></html>

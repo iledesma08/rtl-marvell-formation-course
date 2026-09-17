@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>0006 · Ejercicio 3 — Versión iterativa (folding)</title>
+<link rel="stylesheet" href="../assets/style.css"></head>
+<body><div class="wrap">
+<header class="course"><p>Módulo 6 · Ejercicio 3/5 · Folding</p>
+<h1>0006 · Ejercicio 3: 1× y 1+ compartidos, FSM y métricas</h1>
+<p class="meta">Win: demostrar que 5 ciclos es óptimo, explicar el datapath con P/acc, dibujar la FSM de 6 estados y justificar lat 6 / II 5 / Th f/5. Base: <a href="../ej3_folding/README.md">tu README Ej. 3</a>. ⏱ ~20 min.</p></header>
+<nav class="lecs"><a href="0005-ejercicio-2-asap-alap.html">← 0005 Ej2</a> · <a href="../reference/glosario.html">Glosario</a> · <a href="0007-ejercicio-4-pipeline-cutset.html">0007 Ej4 →</a></nav>
+
+<h2>1 · La idea: cambiar área por ciclos (folding)</h2>
+<p>El DFG pide 7 operaciones pero el hardware disponible es <strong>1 multiplicador + 1 sumador</strong> reutilizados en varios ciclos. El <em>folding</em> separa el <strong>qué</strong> (DFG) del <strong>cuándo/con-qué</strong> (scheduling + recursos). Al plegar, aparecen tres responsabilidades que en la forma directa no existían:</p>
+<table><tr><th>Responsabilidad</th><th>Quién la resuelve</th><th>En tu diseño</th></tr>
+<tr><td><strong>Enrutar operandos</strong> (cada ciclo, otros datos al mismo operador)</td><td>Muxes + selectores</td><td>Dos mux 4:1 con <code>sel_k</code> (tap y coeficiente)</td></tr>
+<tr><td><strong>Retener parciales</strong> (el resultado de un ciclo se usa varios después)</td><td>Registros extra</td><td>P (producto) y acc (acumulador), más y_out</td></tr>
+<tr><td><strong>Secuenciar</strong> (emitir selects/enables en el orden justo)</td><td>FSM de control</td><td>6 estados, Moore + 1 señal Mealy</td></tr></table>
+<p>El "peaje del folding" es exactamente eso: muxes + registros + FSM + ciclos extra, a cambio de pasar de 7 operadores a 2.</p>
+
+<h2>2 · Scheduling con {1×, 1+}: 5 ciclos y por qué es óptimo</h2>
+<table><tr><th>Ciclo</th><th>Multiplicador (×)</th><th>Sumador (+)</th><th>Escrituras</th><th>Lectura intuitiva</th></tr>
+<tr><td>1</td><td>M₀ = x₀h₀</td><td>—</td><td>P←M₀</td><td>Arranco productos</td></tr>
+<tr><td>2</td><td>M₁ = x₁h₁</td><td>—</td><td>P←M₁, acc←P(=M₀)</td><td>Guardo M₀ "al pasar"</td></tr>
+<tr><td>3</td><td>M₂ = x₂h₂</td><td>A₁ = M₀+M₁</td><td>P←M₂, acc←A₁</td><td>Primera suma útil</td></tr>
+<tr><td>4</td><td>M₃ = x₃h₃</td><td>A₂ = A₁+M₂</td><td>P←M₃, acc←A₂</td><td>Solapo × y +</td></tr>
+<tr><td>5</td><td>—</td><td>A₃ = A₂+M₃ = y</td><td>y_out←A₃</td><td>Cierro la cadena</td></tr></table>
+<p><strong>Demostración de optimalidad (decila así), en dos pasos:</strong></p>
+<ol>
+<li>el multiplicador debe hacer 4 productos ⇒ al menos 4 ciclos;</li>
+<li>A₁ necesita M₀ y M₁ juntos, y con un solo ×, M₁ termina como muy temprano al fin del ciclo 2 ⇒ A₁ ≥ ciclo 3 ⇒ A₂ ≥ 4 ⇒ A₃ ≥ 5.</li>
+</ol>
+<p>La cota inferior es 5 y el scheduling la alcanza ⇒ <strong>óptimo</strong>. Compará con los extremos: forma directa 4 ciclos con 7 operadores (throughput 1.00), secuencial naive 7 ciclos (0.57), la tuya 5 ciclos (0.80) con 2 operadores: recuperaste 2 ciclos gracias al solapado que la movilidad de ALAP anticipó.</p>
+<div class="tip"><strong>El truco del ciclo 2:</strong> mientras el × calcula M₁ (que va a P), el valor viejo de P (=M₀) se copia a acc. Desde el ciclo 3 el sumador trabaja <strong>siempre con el par (acc, P)</strong>, así que sus entradas no necesitan muxes. Si te preguntan "¿por qué no hay muxes en el sumador?", esa es la respuesta.</div>
+
+<h2>3 · Datapath: cada bloque y por qué está</h2>
+<figure><img src="../ej3_folding/esquematico_v2.jpeg" alt="Datapath iterativo"><figcaption>Datapath: línea de 4 taps (desplaza 1 vez por muestra), muxes sel_k, × + P, + con acc (mux acc_sel), y_out. Anchos 8b→16b→18b.</figcaption></figure>
+<p>Recorré el datapath en voz alta: <strong>línea de 4 taps</strong> x₀…x₃ que se desplaza solo cuando se acepta muestra nueva (no cada ciclo); <strong>dos mux 4:1</strong> (tap, coeficiente) con <code>sel_k</code>; <strong>× compartido + P</strong> (<code>p_en</code> en ciclos 1–4, retiene M₃ en el 5); <strong>+ compartido</strong> sumando acc+P; <strong>acc con mux 2:1</strong> (<code>acc_sel</code>=0 captura P en ciclo 2, =1 captura la suma en 3–5); <strong>y_out</strong> que desacopla al consumidor. <strong>Anchos:</strong> 8b×8b→16b por producto; acc y salida 18b = 8+8+2 (4·255·255 = 260100 &lt; 2¹⁸), justo sin overflow —verificado en el testbench con el caso borde h=x=255.</p>
+<p><strong>Handshake:</strong> <code>in_ready</code>=1 solo en IDLE o saliendo de S_A3 (si la entrada insiste durante el cómputo, se pierde —decisión de diseño documentada); <code>out_valid</code> pulso de 1 ciclo por muestra; <code>y_out</code> estable 5 ciclos.</p>
+
+<h2>4 · FSM de 6 estados (Moore + 1 Mealy)</h2>
+<figure><img src="../ej3_folding/FSM_V2.jpeg" alt="FSM de control"><figcaption>FSM: IDLE + S_M0, S_M1, S_M2A1, S_M3A2, S_A3. Clave: S_A3→S_M0 back-to-back.</figcaption></figure>
+<table><tr><th>Estado</th><th>Micro-ops</th><th>Transición</th></tr>
+<tr><td>S_IDLE</td><td>nada</td><td>in_valid ⇒ acepta (ld_taps) → S_M0</td></tr>
+<tr><td>S_M0</td><td>P←x₀h₀</td><td>→ S_M1</td></tr>
+<tr><td>S_M1</td><td>P←x₁h₁; acc←P</td><td>→ S_M2A1</td></tr>
+<tr><td>S_M2A1</td><td>P←x₂h₂; acc←acc+P</td><td>→ S_M3A2</td></tr>
+<tr><td>S_M3A2</td><td>P←x₃h₃; acc←acc+P</td><td>→ S_A3</td></tr>
+<tr><td>S_A3</td><td>y_out←acc+P</td><td>in_valid ⇒ directo a S_M0 (back-to-back); si no ⇒ IDLE</td></tr></table>
+<p>Dos detalles de diseño:</p>
+<ol>
+<li><strong>streaming sin huecos</strong> —S_A3→S_M0 acepta la muestra n+1 en el mismo flanco que registra y[n] (II=5, no 6–7);</li>
+<li><strong>un solo punto Mealy</strong> (<code>ld_taps</code> depende de <code>in_valid</code> en IDLE y S_A3), todo lo demás Moore ⇒ FSM trivial de verificar.</li>
+</ol>
+<p>Control y datapath viven en módulos separados (<code>fir4_ctrl</code> / <code>fir4_datapath</code>).</p>
+
+<h2>5 · Métricas y verificación (cerrá con números)</h2>
+<div class="card"><strong>Latencia</strong> in_valid→out_valid = <strong>6 ciclos</strong> (1 captura + 5 cómputo). <strong>II = 5</strong> (back-to-back). <strong>Throughput = f/5</strong> (20 Mmuestras/s @100 MHz). Utilización: × 80%, + 60% (el × es el cuello de botella, y la cota demuestra que no puede trabajar más). <strong>Verificación funcional:</strong> testbench self-checking en 5 fases (impulso 8,16,24,32; borde 260100; streaming 100 back-to-back; 300 gaps aleatorios; latencia aislada).</div>
+
+<h3>5.1 · El chequeo con Yosys: probar el "1× y 1+" sobre el netlist real</h3>
+<p>El testbench demuestra que el filtro <em>calcula bien</em>, pero no demuestra la premisa del ejercicio: que lo hace con <em>un solo multiplicador y un solo sumador</em>. Yo podría haber escrito un RTL que calcula perfecto usando 4 multiplicadores y el testbench pasaría igual. Por eso el <code>run.sh</code> cierra con <strong>Yosys</strong> (sintetizador open-source): lee tu SystemVerilog, lo elabora hasta netlist y <em>cuenta las celdas reales</em>. Es la diferencia entre "lo dibujé así" y "el silicio sintetizado tiene exactamente esto".</p>
+<p>Lo que hace el script, en dos pasadas:</p>
+<ol>
+<li><strong>Pasada 1 — aritmética de alto nivel:</strong> <code>read_verilog -sv; hierarchy -top fir4_folded; flatten; proc; opt -fast; stat</code>. Aplana la jerarquía (control + datapath juntos), convierte los <code>always_ff</code> en flip-flops y optimiza —pero <em>sin</em> mapear a compuertas—. En ese nivel todavía existen las celdas <code>$mul</code> (multiplicador) y <code>$add</code> (sumador) como bloques reconocibles, y el script cuenta: <strong>yosys = 1 y 1, esperado 1 y 1 → OK</strong>. El detalle clave: hay que contar <em>antes</em> del techmap, porque después el multiplicador se disuelve en cientos de AND/XOR y ya no podrías decir "hay un multiplicador".</li>
+<li><strong>Pasada 2 — bits de registro:</strong> lo mismo más <code>techmap</code>, que baja todos los registros a celdas de 1 bit (<code>$_DFF*</code>). Sumando sus anchos da el total de flip-flops: <strong>yosys = 88, esperado 88 → OK</strong>.</li>
+</ol>
+<p>El presupuesto de 88 bits, sumando fila por fila (decilo así en tu presentación):</p>
+<table><tr><th>Registro</th><th>Bits</th><th>De dónde sale</th></tr>
+<tr><td>Línea de retardo x₀…x₃</td><td>4 × 8 = 32</td><td>4 taps de 8 bits (<code>always_ff</code> con <code>ld_taps</code>)</td></tr>
+<tr><td>P (producto)</td><td>16</td><td>8 + 8 por el × (<code>prod</code>)</td></tr>
+<tr><td>acc (acumulador)</td><td>18</td><td>8 + 8 + 2 de crecimiento (<code>acc</code>)</td></tr>
+<tr><td>y_out (salida)</td><td>18</td><td>registra <code>add_out</code> en S_A3</td></tr>
+<tr><td>Estado de la FSM</td><td>3</td><td>6 estados ⇒ 3 bits binarios (<code>state</code>)</td></tr>
+<tr><td>out_valid</td><td>1</td><td>pulso registrado (<code>out_valid_r</code>)</td></tr>
+<tr><td><strong>Total</strong></td><td><strong>32+16+18+18+3+1 = 88</strong></td><td></td></tr></table>
+<div class="tip"><strong>Cómo presentarlo (tu slide más fuerte):</strong> mostrá la salida del script —<code>multiplicadores ($mul) yosys= 1 esperado= 1 OK / sumadores ($add) yosys= 1 esperado= 1 OK / bits de registro yosys= 88 esperado= 88 OK</code>— y decí: "el testbench prueba que calcula bien; Yosys prueba sobre el netlist sintetizado que lo hace con exactamente un multiplicador, un sumador y 88 flip-flops: la premisa del folding, verificada en silicio, no solo en el dibujo". Si hubieras inferido un × de más (p. ej. escribiendo <code>xa*ha</code> en dos bloques distintos), este chequeo lo delataría aunque el testbench pasara.</div>
+
+<h2>Fuente primaria</h2>
+<p>Tu resolución completa: <a href="../ej3_folding/README.md">ej3_folding/README.md</a> (scheduling, RTL, FSM, testbench, Yosys).</p>
+
+<div class="quiz"><h2>Autoevaluación · Ej. 3</h2><p class="meta"><span id="score"></span></p>
+<div class="q"><p>1. ¿Por qué 5 ciclos es el mínimo posible?</p>
+<button data-ok="0">Porque la FSM necesita seis estados por definición formal</button>
+<button data-ok="0">Porque el sumador exige cinco operaciones en cada muestra</button>
+<button data-ok="1">Porque cuatro productos más A₁≥3 fuerzan A₃≥5</button>
+<div class="fb">✔ 4 productos ⇒ ≥4 ciclos; A₁≥3 ⇒ A₃≥5. Se alcanza ⇒ óptimo con {1×,1+}.</div></div>
+<div class="q"><p>2. ¿Qué hace el ciclo 2 del scheduling?</p>
+<button data-ok="1">Calcula M₁ mientras acc guarda el M₀ previo</button>
+<button data-ok="0">Calcula A₁ mientras P guarda el M₂ futuro</button>
+<button data-ok="0">Registra y_out mientras acepta muestra entrante nueva</button>
+<div class="fb">✔ El truco que evita muxes en el sumador: acc←P(=M₀) mientras × hace M₁.</div></div>
+<div class="q"><p>3. Latencia, II y throughput correctos…</p>
+<button data-ok="0">Latencia cinco, II seis, throughput efe sobre seis</button>
+<button data-ok="0">Latencia cuatro, II cuatro, throughput efe sobre cuatro</button>
+<button data-ok="1">Latencia seis, II cinco, throughput efe sobre cinco</button>
+<div class="fb">✔ 6 = captura+5 cómputo; II=5 por back-to-back; Th=f/5.</div></div>
+<div class="q"><p>4. El back-to-back S_A3→S_M0 logra…</p>
+<button data-ok="1">Aceptar muestra nueva al registrar la salida actual</button>
+<button data-ok="0">Duplicar operadores para procesar en paralelo total</button>
+<button data-ok="0">Eliminar registros P y acc del camino de datos</button>
+<div class="fb">✔ Sin ciclos muertos: II=5 en vez de 6–7. Clave del throughput en streaming.</div></div>
+</div>
+<p class="meta">¿Dudas? Preguntame: "¿por qué acc necesita un mux 2:1?" o "demostrame la cota de 5".</p>
+<footer><a href="0005-ejercicio-2-asap-alap.html">← 0005</a> · <a href="0007-ejercicio-4-pipeline-cutset.html">0007 Ej4 →</a></footer>
+</div><script src="../assets/quiz.js"></script></body></html>

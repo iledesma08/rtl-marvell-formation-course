@@ -1,0 +1,55 @@
+/* Curso Mod6 — hoja compartida. Tufte-simple: serif legible, columna angosta, imprimible. */
+:root{
+  --ink:#1a1a1a; --muted:#5b5b5b; --accent:#0b5fff; --ok:#0e7a3d; --bad:#b00020;
+  --bg:#fffef9; --card:#ffffff; --line:#e5e0d5; --code:#f6f2e9;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:Georgia,'Times New Roman',serif;
+  line-height:1.65;margin:0;padding:0}
+.wrap{max-width:760px;margin:0 auto;padding:2rem 1.25rem 4rem}
+header.course{border-bottom:3px double var(--ink);margin-bottom:1.5rem;padding-bottom:.75rem}
+header.course p{margin:.15rem 0;color:var(--muted);font-family:system-ui,sans-serif;font-size:.85rem}
+nav.lecs{font-family:system-ui,sans-serif;font-size:.82rem;color:var(--muted);margin:.5rem 0 1.5rem}
+nav.lecs a{color:var(--accent);text-decoration:none}
+nav.lecs a:hover{text-decoration:underline}
+h1{font-size:1.9rem;line-height:1.2;margin:.2rem 0 .5rem}
+h2{font-size:1.3rem;margin:2rem 0 .5rem;border-bottom:1px solid var(--line);padding-bottom:.25rem}
+h3{font-size:1.05rem;margin:1.4rem 0 .3rem;font-family:system-ui,sans-serif}
+p,li{font-size:1.02rem}
+.meta{font-family:system-ui,sans-serif;font-size:.85rem;color:var(--muted)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:1rem 1.1rem;margin:1rem 0}
+.formula{background:var(--code);border:1px solid var(--line);border-radius:8px;padding:.7rem .9rem;
+  overflow-x:auto;font-size:1.05rem;margin:.8rem 0}
+table{border-collapse:collapse;width:100%;font-family:system-ui,sans-serif;font-size:.9rem;margin:.8rem 0}
+th,td{border:1px solid var(--line);padding:.45rem .55rem;text-align:left}
+th{background:#f3efe4}
+figure{margin:1.2rem 0;text-align:center}
+figure img{max-width:100%;border:1px solid var(--line);border-radius:8px;background:#fff}
+figcaption{font-family:system-ui,sans-serif;font-size:.82rem;color:var(--muted);margin-top:.35rem}
+svg.diag{max-width:100%;height:auto;background:#fff;border:1px solid var(--line);border-radius:8px}
+.tip{border-left:4px solid var(--accent);padding:.5rem .9rem;background:#f2f6ff;border-radius:0 8px 8px 0}
+.warn{border-left:4px solid var(--bad);padding:.5rem .9rem;background:#fff1f1;border-radius:0 8px 8px 0}
+a{color:var(--accent)}
+code,kbd{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.92em;background:var(--code);
+  padding:.1em .35em;border-radius:5px;border:1px solid var(--line)}
+.quiz{border:2px solid var(--ink);border-radius:12px;padding:1rem 1.1rem;margin:2rem 0;background:#fff}
+.quiz h2{border:none;margin-top:0}
+.q{margin:1rem 0;padding:.8rem;border:1px solid var(--line);border-radius:10px}
+.q p{font-family:system-ui,sans-serif;font-weight:600;margin:.1rem 0 .5rem}
+.q button{display:block;width:100%;text-align:left;margin:.3rem 0;padding:.5rem .6rem;border-radius:8px;
+  border:1px solid var(--line);background:#fbfaf6;cursor:pointer;font-size:.92rem;font-family:system-ui,sans-serif}
+.q button:hover{border-color:var(--accent)}
+.q button.correct{border-color:var(--ok);background:#e9f7ee}
+.q button.wrong{border-color:var(--bad);background:#fdecec}
+.q .fb{font-family:system-ui,sans-serif;font-size:.87rem;margin-top:.4rem;display:none}
+.q.answered .fb{display:block}
+#score{font-family:system-ui,sans-serif;font-weight:700}
+footer{margin-top:2.5rem;border-top:1px solid var(--line);padding-top:.8rem;color:var(--muted);
+  font-family:system-ui,sans-serif;font-size:.82rem}
+@media print{
+  body{background:#fff}
+  .wrap{max-width:100%;padding:0}
+  .quiz{break-inside:avoid}
+  nav.lecs,a{color:#000}
+  .q button{border:1px solid #999}
+}

@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>0008 · Ejercicio 5 — Comparación PPA</title>
+<link rel="stylesheet" href="../assets/style.css"></head>
+<body><div class="wrap">
+<header class="course"><p>Módulo 6 · Ejercicio 5/5 · PPA</p>
+<h1>0008 · Ejercicio 5: folded vs pipeline, el trade-off contado con números</h1>
+<p class="meta">Win: leer la tabla PPA fila por fila, justificar cada celda con su causa y rematar con "no son excluyentes". Base: <a href="../ej5_Comparacion/README.md">tu README Ej. 5</a>. ⏱ ~15–20 min.</p></header>
+<nav class="lecs"><a href="0007-ejercicio-4-pipeline-cutset.html">← 0007 Ej4</a> · <a href="../reference/glosario.html">Glosario</a> · <a href="0009-conclusiones-guia-presentacion.html">0009 Cierre →</a></nav>
+
+<h2>1 · Qué compara este ejercicio (y qué NO)</h2>
+<p>Compara tus dos arquitecturas del <strong>mismo DFG</strong>: la <strong>iterativa plegada</strong> del <a href="0006-ejercicio-3-version-iterativa.html">Ej. 3</a> (1×, 1+, FSM, 5 ciclos/muestra) contra la <strong>pipelineada con cut-set</strong> del <a href="0007-ejercicio-4-pipeline-cutset.html">Ej. 4</a> (4×, 3+, 2 registros de corte). Métricas <strong>PPA</strong>: Power, Performance (latencia/throughput/fmax), Area. Lo que NO es: una síntesis final en silicio —las áreas en "celdas" son <strong>estimaciones relativas</strong> (~64 por × 8×8, ~18 por + 18b) para razonar el compromiso, no números de foundry. Decilo en voz alta: te protege de la pregunta "¿de dónde salen esas celdas?".</p>
+
+<h2>2 · Tabla a presentar, fila por fila con su causa</h2>
+<table><tr><th>Métrica</th><th>Folded (1×,1+)</th><th>Pipeline (cut-set)</th><th>Por qué</th></tr>
+<tr><td><strong>Latencia</strong></td><td>6 ciclos (in→out)</td><td>5 retardos (3 línea + 2 corte)</td><td>Folded: 1 captura + 5 cómputo serializado. Pipeline: profundidad de registros, una muestra atraviesa 5 z⁻¹</td></tr>
+<tr><td><strong>Throughput</strong></td><td>1/5 muestras/ciclo = f/5</td><td>1 muestra/ciclo lleno (a fmax 1/4 u.t.)</td><td>Folded lo fija el II=5 del × compartido. Pipeline, el pipeline lleno + reloj más rápido</td></tr>
+<tr><td><strong>Área</strong></td><td>Mínima: 1× (~64) + 1+ (~18) + muxes/reg/control</td><td>Mayor: 4× (~256) + 3+ y 2 reg extra</td><td>Folded: 2 operadores vs 7 (menos de ⅓). Pipeline: replica cómputo y suma registros</td></tr>
+<tr><td><strong>Potencia</strong></td><td>Menor</td><td>Mayor</td><td>Correlaciona con área activa y capacidad conmutada por ciclo; pipeline además corre a mayor fmax</td></tr></table>
+<p>Leé la tabla en vivo así: señalá cada fila y decí la causa de la columna ganadora. Ejemplo: "Throughput: gana pipeline, porque una vez lleno entrega una muestra por ciclo a un reloj 25% más rápido, mientras el folded está atado a su II de 5 por el multiplicador compartido". Causa, no solo número.</p>
+
+<h2>3 · Dos escenarios que hacen memorable el trade-off</h2>
+<div class="card"><strong>Sensor IoT a batería</strong> (pocas muestras/s, área y energía mandan): elegís <strong>folded</strong> —2 operadores, throughput f/5 sobra, potencia mínima.<br><strong>Front-end de radio a alta tasa</strong> (MS/s mandan, hay presupuesto de área): elegís <strong>pipeline</strong> —1 muestra/ciclo a fmax alta, pagás área y potencia.<br>Y el remate: <strong>no son excluyentes</strong> —podés plegar un diseño pipelineado o pipelinear etapas de uno plegado, buscando el punto PPA que tu spec pide.</div>
+<div class="warn"><strong>Pregunta trampa esperada:</strong> "¿Cuál es mejor?" → "Depende del objetivo: PPA se lee junta, nunca una métrica sola. Con restricción de área/potencia gana folded; con restricción de throughput gana pipeline. Mi tabla lo muestra fila por fila."</div>
+
+<h2>4 · Números ancla para decir en voz alta</h2>
+<p>Memorizá este quinteto: <strong>6 vs 5</strong> (latencia folded en ciclos vs retardos pipeline), <strong>f/5 vs 1/ciclo</strong> (throughputs), <strong>2 vs 7 operadores</strong> (área de cómputo), <strong>−20% throughput por −70% operadores</strong> (el negocio del folding), <strong>+25% fmax por +2 registros</strong> (el negocio del pipeline). Con esos cinco números defendés toda la tabla.</p>
+
+<h2>Fuente primaria</h2>
+<p>Tu tabla: <a href="../ej5_Comparacion/README.md">ej5_Comparacion/README.md</a>. Contraste con <a href="0006-ejercicio-3-version-iterativa.html">Ej. 3</a> y <a href="0007-ejercicio-4-pipeline-cutset.html">Ej. 4</a>.</p>
+
+<div class="quiz"><h2>Autoevaluación · Ej. 5</h2><p class="meta"><span id="score"></span></p>
+<div class="q"><p>1. En área estimada, el folded gana porque…</p>
+<button data-ok="0">Usa cuatro productos y tres sumas en paralelo</button>
+<button data-ok="0">Agrega registros de pipeline en cada camino crítico</button>
+<button data-ok="1">Usa un producto y una suma compartidos totales</button>
+<div class="fb">✔ 2 operadores vs 7: menos de un tercio del cómputo directo, más muxes/reg de plegado.</div></div>
+<div class="q"><p>2. En throughput en régimen, el pipeline gana porque…</p>
+<button data-ok="1">Lleno entrega una muestra por cada ciclo útil</button>
+<button data-ok="0">Serializa productos en cinco ciclos por muestra</button>
+<button data-ok="0">Secuencia estados con máquina de control lenta</button>
+<div class="fb">✔ Pipeline lleno = 1/ciclo a fmax 1/4; folded = 1/5 atado a su II.</div></div>
+<div class="q"><p>3. La potencia relativa se estima desde…</p>
+<button data-ok="0">La latencia medida con cronómetro en cada prueba</button>
+<button data-ok="0">El throughput pico sin considerar área ni reloj</button>
+<button data-ok="1">El área activa y la capacidad conmutada total</button>
+<div class="fb">✔ Más celdas conmutando a más fmax ⇒ más potencia. Estimación relativa, no silicio.</div></div>
+<div class="q"><p>4. Cierre correcto del trade-off…</p>
+<button data-ok="1">Técnicas distintas y combinables según el objetivo PPA</button>
+<button data-ok="0">Pipeline siempre superior en todo escenario posible</button>
+<button data-ok="0">Folding siempre superior en todo escenario posible</button>
+<div class="fb">✔ Folding⇔área/potencia; pipeline⇔velocidad. Sin campeón absoluto; orientado a spec.</div></div>
+</div>
+<p class="meta">¿Dudas? Preguntame: "¿cómo justifico que la potencia correlaciona con área?" o "practicamos la lectura de la tabla".</p>
+<footer><a href="0007-ejercicio-4-pipeline-cutset.html">← 0007</a> · <a href="0009-conclusiones-guia-presentacion.html">0009 Cierre →</a></footer>
+</div><script src="../assets/quiz.js"></script></body></html>
